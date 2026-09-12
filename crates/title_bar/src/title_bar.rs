@@ -3,18 +3,23 @@ pub use platform_title_bar::{
     ShowNextWindowTab, ShowPreviousWindowTab,
 };
 
-use gpui::{App, Context, Entity, FocusHandle, Focusable, Render, Window};
+use gpui::{App, Context, Entity, FocusHandle, Focusable, Render, WeakEntity, Window};
 use ui::prelude::*;
 use workspace::Workspace;
 
 pub struct TitleBar {
     focus_handle: FocusHandle,
+    workspace: WeakEntity<Workspace>,
 }
 
 impl TitleBar {
-    fn new(cx: &mut Context<Self>) -> Self {
+    fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+        if let Some(workspace) = workspace.upgrade() {
+            cx.observe(&workspace, |_, _, cx| cx.notify()).detach();
+        }
         Self {
             focus_handle: cx.focus_handle(),
+            workspace,
         }
     }
 }
@@ -26,8 +31,27 @@ impl Focusable for TitleBar {
 }
 
 impl Render for TitleBar {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div().h_full().w_full()
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let project_name = self
+            .workspace
+            .upgrade()
+            .and_then(|workspace| {
+                let project = workspace.read(cx).project().clone();
+                project
+                    .read(cx)
+                    .visible_worktrees(cx)
+                    .next()
+                    .map(|worktree| worktree.read(cx).root_name_str().to_string())
+            })
+            .unwrap_or_else(|| "Light Code".to_string());
+
+        div()
+            .h_full()
+            .w_full()
+            .flex()
+            .items_center()
+            .px_3()
+            .child(Label::new(project_name))
     }
 }
 
@@ -37,7 +61,8 @@ pub fn init(cx: &mut App) {
         let Some(window) = window else {
             return;
         };
-        let item: Entity<TitleBar> = cx.new(TitleBar::new);
+        let workspace_handle = cx.entity().downgrade();
+        let item: Entity<TitleBar> = cx.new(|cx| TitleBar::new(workspace_handle, cx));
         workspace.set_titlebar_item(item.into(), window, cx);
     })
     .detach();
