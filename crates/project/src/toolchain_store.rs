@@ -12,6 +12,7 @@ use language::{
     LanguageName, LanguageRegistry, LanguageToolchainStore, ManifestDelegate, Toolchain,
     ToolchainList, ToolchainScope,
 };
+#[cfg(any())]
 use rpc::{
     AnyProtoClient, TypedEnvelope,
     proto::{
@@ -38,6 +39,7 @@ pub struct ToolchainStore {
 
 enum ToolchainStoreInner {
     Local(Entity<LocalToolchainStore>),
+    #[cfg(any())]
     Remote(Entity<RemoteToolchainStore>),
 }
 
@@ -50,6 +52,7 @@ pub struct Toolchains {
 }
 impl EventEmitter<ToolchainStoreEvent> for ToolchainStore {}
 impl ToolchainStore {
+    #[cfg(any())]
     pub fn init(client: &AnyProtoClient) {
         client.add_entity_request_handler(Self::handle_activate_toolchain);
         client.add_entity_request_handler(Self::handle_list_toolchains);
@@ -82,6 +85,7 @@ impl ToolchainStore {
         }
     }
 
+    #[cfg(any())]
     pub(super) fn remote(
         project_id: u64,
         worktree_store: Entity<WorktreeStore>,
@@ -109,6 +113,7 @@ impl ToolchainStore {
             ToolchainStoreInner::Local(local) => {
                 local.update(cx, |this, cx| this.activate_toolchain(path, toolchain, cx))
             }
+            #[cfg(any())]
             ToolchainStoreInner::Remote(remote) => {
                 remote.update(cx, |this, cx| this.activate_toolchain(path, toolchain, cx))
             }
@@ -160,6 +165,7 @@ impl ToolchainStore {
             ToolchainStoreInner::Local(local) => local.update(cx, |this, cx| {
                 this.resolve_toolchain(abs_path, language_name, cx)
             }),
+            #[cfg(any())]
             ToolchainStoreInner::Remote(remote) => remote.update(cx, |this, cx| {
                 this.resolve_toolchain(abs_path, language_name, cx)
             }),
@@ -206,6 +212,7 @@ impl ToolchainStore {
             ToolchainStoreInner::Local(local) => {
                 local.update(cx, |this, cx| this.list_toolchains(path, language_name, cx))
             }
+            #[cfg(any())]
             ToolchainStoreInner::Remote(remote) => {
                 remote.read(cx).list_toolchains(path, language_name, cx)
             }
@@ -238,11 +245,13 @@ impl ToolchainStore {
                 &path.path,
                 language_name,
             )),
+            #[cfg(any())]
             ToolchainStoreInner::Remote(remote) => {
                 remote.read(cx).active_toolchain(path, language_name, cx)
             }
         }
     }
+    #[cfg(any())]
     async fn handle_activate_toolchain(
         this: Entity<Self>,
         envelope: TypedEnvelope<proto::ActivateToolchain>,
@@ -272,6 +281,7 @@ impl ToolchainStore {
         .await;
         Ok(proto::Ack {})
     }
+    #[cfg(any())]
     async fn handle_active_toolchain(
         this: Entity<Self>,
         envelope: TypedEnvelope<proto::ActiveToolchain>,
@@ -305,6 +315,7 @@ impl ToolchainStore {
         })
     }
 
+    #[cfg(any())]
     async fn handle_list_toolchains(
         this: Entity<Self>,
         envelope: TypedEnvelope<proto::ListToolchains>,
@@ -369,6 +380,7 @@ impl ToolchainStore {
         })
     }
 
+    #[cfg(any())]
     async fn handle_resolve_toolchain(
         this: Entity<Self>,
         envelope: TypedEnvelope<proto::ResolveToolchain>,
@@ -400,12 +412,14 @@ impl ToolchainStore {
     pub fn as_language_toolchain_store(&self) -> Arc<dyn LanguageToolchainStore> {
         match &self.mode {
             ToolchainStoreInner::Local(local) => Arc::new(LocalStore(local.downgrade())),
+            #[cfg(any())]
             ToolchainStoreInner::Remote(remote) => Arc::new(RemoteStore(remote.downgrade())),
         }
     }
     pub fn as_local_store(&self) -> Option<&Entity<LocalToolchainStore>> {
         match &self.mode {
             ToolchainStoreInner::Local(local) => Some(local),
+            #[cfg(any())]
             ToolchainStoreInner::Remote(_) => None,
         }
     }
@@ -436,6 +450,7 @@ impl language::LocalLanguageToolchainStore for LocalStore {
     }
 }
 
+#[cfg(any())]
 #[async_trait(?Send)]
 impl language::LanguageToolchainStore for RemoteStore {
     async fn active_toolchain(
@@ -467,6 +482,7 @@ impl language::LocalLanguageToolchainStore for EmptyToolchainStore {
     }
 }
 pub(crate) struct LocalStore(WeakEntity<LocalToolchainStore>);
+#[cfg(any())]
 struct RemoteStore(WeakEntity<RemoteToolchainStore>);
 
 #[derive(Clone)]
@@ -609,12 +625,15 @@ impl LocalToolchainStore {
     }
 }
 
+#[cfg(any())]
 impl EventEmitter<ToolchainStoreEvent> for RemoteToolchainStore {}
+#[cfg(any())]
 struct RemoteToolchainStore {
     client: AnyProtoClient,
     project_id: u64,
 }
 
+#[cfg(any())]
 impl RemoteToolchainStore {
     pub(crate) fn activate_toolchain(
         &self,

@@ -21,7 +21,6 @@ log.workspace = true
 menu.workspace = true
 picker.workspace = true
 project.workspace = true
-proto.workspace = true
 settings.workspace = true
 theme.workspace = true
 theme_settings.workspace = true

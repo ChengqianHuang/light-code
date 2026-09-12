@@ -79,36 +79,6 @@ pub struct SpawnInTerminal {
     pub save: SaveStrategy,
 }
 
-impl SpawnInTerminal {
-    pub fn to_proto(&self) -> proto::SpawnInTerminal {
-        proto::SpawnInTerminal {
-            label: self.label.clone(),
-            command: self.command.clone(),
-            args: self.args.clone(),
-            env: self
-                .env
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-            cwd: self
-                .cwd
-                .clone()
-                .map(|cwd| cwd.to_string_lossy().into_owned()),
-        }
-    }
-
-    pub fn from_proto(proto: proto::SpawnInTerminal) -> Self {
-        Self {
-            label: proto.label.clone(),
-            command: proto.command.clone(),
-            args: proto.args.clone(),
-            env: proto.env.into_iter().collect(),
-            cwd: proto.cwd.map(PathBuf::from),
-            ..Default::default()
-        }
-    }
-}
-
 /// A final form of the [`TaskTemplate`], that got resolved with a particular [`TaskContext`] and now is ready to spawn the actual task.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedTask {
@@ -370,35 +340,6 @@ impl From<TaskContext> for SharedTaskContext {
 /// This is a new type representing a 'tag' on a 'runnable symbol', typically a test of main() function, found via treesitter.
 #[derive(Clone, Debug)]
 pub struct RunnableTag(pub SharedString);
-
-pub fn shell_from_proto(proto: proto::Shell) -> anyhow::Result<Shell> {
-    let shell_type = proto.shell_type.context("invalid shell type")?;
-    let shell = match shell_type {
-        proto::shell::ShellType::System(_) => Shell::System,
-        proto::shell::ShellType::Program(program) => Shell::Program(program),
-        proto::shell::ShellType::WithArguments(program) => Shell::WithArguments {
-            program: program.program,
-            args: program.args,
-            title_override: None,
-        },
-    };
-    Ok(shell)
-}
-
-pub fn shell_to_proto(shell: Shell) -> proto::Shell {
-    let shell_type = match shell {
-        Shell::System => proto::shell::ShellType::System(proto::System {}),
-        Shell::Program(program) => proto::shell::ShellType::Program(program),
-        Shell::WithArguments {
-            program,
-            args,
-            title_override: _,
-        } => proto::shell::ShellType::WithArguments(proto::shell::WithArguments { program, args }),
-    };
-    proto::Shell {
-        shell_type: Some(shell_type),
-    }
-}
 
 type VsCodeEnvVariable = String;
 type VsCodeCommand = String;

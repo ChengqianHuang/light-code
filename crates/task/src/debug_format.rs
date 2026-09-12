@@ -33,22 +33,6 @@ impl TcpArgumentsTemplate {
         self.host
             .unwrap_or(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
     }
-
-    pub fn from_proto(proto: proto::TcpHost) -> Result<Self> {
-        Ok(Self {
-            port: proto.port.map(|p| p.try_into()).transpose()?,
-            host: proto.host.map(|h| h.parse()).transpose()?,
-            timeout: proto.timeout,
-        })
-    }
-
-    pub fn to_proto(&self) -> proto::TcpHost {
-        proto::TcpHost {
-            port: self.port.map(|p| p.into()),
-            host: self.host.map(|h| h.to_string()),
-            timeout: self.timeout,
-        }
-    }
 }
 
 /// Represents the attach request information of the debug adapter
@@ -115,62 +99,6 @@ pub enum DebugRequest {
     Launch(LaunchRequest),
     /// Call the `attach` request on the debug adapter
     Attach(AttachRequest),
-}
-
-impl DebugRequest {
-    pub fn to_proto(&self) -> proto::DebugRequest {
-        match self {
-            DebugRequest::Launch(launch_request) => proto::DebugRequest {
-                request: Some(proto::debug_request::Request::DebugLaunchRequest(
-                    proto::DebugLaunchRequest {
-                        program: launch_request.program.clone(),
-                        cwd: launch_request
-                            .cwd
-                            .as_ref()
-                            .map(|cwd| cwd.to_string_lossy().into_owned()),
-                        args: launch_request.args.clone(),
-                        env: launch_request
-                            .env
-                            .iter()
-                            .map(|(k, v)| (k.clone(), v.clone()))
-                            .collect(),
-                    },
-                )),
-            },
-            DebugRequest::Attach(attach_request) => proto::DebugRequest {
-                request: Some(proto::debug_request::Request::DebugAttachRequest(
-                    proto::DebugAttachRequest {
-                        process_id: attach_request
-                            .process_id
-                            .expect("The process ID to be already filled out."),
-                    },
-                )),
-            },
-        }
-    }
-
-    pub fn from_proto(val: proto::DebugRequest) -> Result<DebugRequest> {
-        let request = val.request.context("Missing debug request")?;
-        match request {
-            proto::debug_request::Request::DebugLaunchRequest(proto::DebugLaunchRequest {
-                program,
-                cwd,
-                args,
-                env,
-            }) => Ok(DebugRequest::Launch(LaunchRequest {
-                program,
-                cwd: cwd.map(From::from),
-                args,
-                env: env.into_iter().collect(),
-            })),
-
-            proto::debug_request::Request::DebugAttachRequest(proto::DebugAttachRequest {
-                process_id,
-            }) => Ok(DebugRequest::Attach(AttachRequest {
-                process_id: Some(process_id),
-            })),
-        }
-    }
 }
 
 impl From<LaunchRequest> for DebugRequest {

@@ -423,18 +423,6 @@ impl MTime {
     }
 }
 
-impl From<proto::Timestamp> for MTime {
-    fn from(timestamp: proto::Timestamp) -> Self {
-        MTime(timestamp.into())
-    }
-}
-
-impl From<MTime> for proto::Timestamp {
-    fn from(mtime: MTime) -> Self {
-        mtime.0.into()
-    }
-}
-
 slotmap::new_key_type! { pub struct TrashId; }
 
 impl TrashId {

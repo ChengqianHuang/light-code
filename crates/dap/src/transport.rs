@@ -8,7 +8,6 @@ use dap_types::{
 use futures::{AsyncRead, AsyncReadExt as _, AsyncWrite, FutureExt as _, channel::oneshot, select};
 use gpui::{AppContext as _, AsyncApp, BackgroundExecutor, Task};
 use parking_lot::Mutex;
-use proto::ErrorExt;
 use settings::Settings as _;
 use smallvec::SmallVec;
 use smol::{
@@ -116,7 +115,8 @@ impl PendingRequests {
             return;
         };
         for (_, sender) in inner.drain() {
-            sender.send(Err(e.cloned())).ok();
+            let message = format!("{e}");
+            sender.send(Err(anyhow::anyhow!(message))).ok();
         }
     }
 

@@ -13,7 +13,6 @@ path = "src/extensions_ui.rs"
 
 [dependencies]
 anyhow.workspace = true
-cloud_api_types.workspace = true
 command_palette_hooks.workspace = true
 component.workspace = true
 collections.workspace = true

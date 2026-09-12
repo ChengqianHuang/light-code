@@ -10,7 +10,8 @@ use gpui::{
     App, AppContext, AsyncApp, Context, Entity, EntityId, EventEmitter, Subscription, Task,
 };
 use itertools::Itertools;
-use language::{Buffer, BufferSnapshot, proto::serialize_anchor as serialize_text_anchor};
+use language::{Buffer, BufferSnapshot};
+#[cfg(any())]
 use rpc::{
     AnyProtoClient, TypedEnvelope,
     proto::{self},
@@ -129,6 +130,7 @@ mod breakpoints_in_file {
     }
 }
 
+#[cfg(any())]
 #[derive(Clone)]
 struct RemoteBreakpointStore {
     upstream_client: AnyProtoClient,
@@ -138,6 +140,7 @@ struct RemoteBreakpointStore {
 #[derive(Clone)]
 enum BreakpointStoreMode {
     Local,
+    #[cfg(any())]
     Remote(RemoteBreakpointStore),
 }
 
@@ -154,6 +157,7 @@ pub struct BreakpointStore {
     buffer_store: Entity<BufferStore>,
     worktree_store: Entity<WorktreeStore>,
     breakpoints: BTreeMap<Arc<Path>, BreakpointsInFile>,
+    #[cfg(any())]
     downstream_client: Option<(AnyProtoClient, u64)>,
     active_stack_frame: Option<ActiveStackFrame>,
     active_debug_line_pane_id: Option<EntityId>,
@@ -162,6 +166,7 @@ pub struct BreakpointStore {
 }
 
 impl BreakpointStore {
+    #[cfg(any())]
     pub fn init(client: &AnyProtoClient) {
         client.add_entity_request_handler(Self::handle_toggle_breakpoint);
         client.add_entity_message_handler(Self::handle_breakpoints_for_file);
@@ -172,12 +177,12 @@ impl BreakpointStore {
             mode: BreakpointStoreMode::Local,
             buffer_store,
             worktree_store,
-            downstream_client: None,
             active_stack_frame: Default::default(),
             active_debug_line_pane_id: None,
         }
     }
 
+    #[cfg(any())]
     pub(crate) fn remote(
         upstream_project_id: u64,
         upstream_client: AnyProtoClient,
@@ -198,16 +203,19 @@ impl BreakpointStore {
         }
     }
 
+    #[cfg(any())]
     pub fn shared(&mut self, project_id: u64, downstream_client: AnyProtoClient) {
         self.downstream_client = Some((downstream_client, project_id));
     }
 
+    #[cfg(any())]
     pub(crate) fn unshared(&mut self, cx: &mut Context<Self>) {
         self.downstream_client.take();
 
         cx.notify();
     }
 
+    #[cfg(any())]
     async fn handle_breakpoints_for_file(
         this: Entity<Self>,
         message: TypedEnvelope<proto::BreakpointsForFile>,
@@ -270,6 +278,7 @@ impl BreakpointStore {
         Ok(())
     }
 
+    #[cfg(any())]
     async fn handle_toggle_breakpoint(
         this: Entity<Self>,
         message: TypedEnvelope<proto::ToggleBreakpoint>,
@@ -314,6 +323,7 @@ impl BreakpointStore {
         Ok(proto::Ack {})
     }
 
+    #[cfg(any())]
     pub(crate) fn broadcast(&self) {
         if let Some((client, project_id)) = &self.downstream_client {
             for (path, breakpoint_set) in &self.breakpoints {
@@ -569,43 +579,6 @@ impl BreakpointStore {
         if breakpoint_set.breakpoints.is_empty() {
             self.breakpoints.remove(&abs_path);
         }
-        if let BreakpointStoreMode::Remote(remote) = &self.mode {
-            if let Some(breakpoint) =
-                breakpoint
-                    .bp
-                    .to_proto(&abs_path, &breakpoint.position, &HashMap::default())
-            {
-                cx.background_spawn(remote.upstream_client.request(proto::ToggleBreakpoint {
-                    project_id: remote.upstream_project_id,
-                    path: abs_path.to_string_lossy().into_owned(),
-                    breakpoint: Some(breakpoint),
-                }))
-                .detach();
-            }
-        } else if let Some((client, project_id)) = &self.downstream_client {
-            let breakpoints = self
-                .breakpoints
-                .get(&abs_path)
-                .map(|breakpoint_set| {
-                    breakpoint_set
-                        .breakpoints
-                        .iter()
-                        .filter_map(|bp| {
-                            bp.bp
-                                .bp
-                                .to_proto(&abs_path, bp.position(), &bp.session_state)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            let _ = client.send(proto::BreakpointsForFile {
-                project_id: *project_id,
-                path: abs_path.to_string_lossy().into_owned(),
-                breakpoints,
-            });
-        }
-
         cx.emit(BreakpointStoreEvent::BreakpointsUpdated(
             abs_path,
             BreakpointUpdatedReason::Toggled,
@@ -995,6 +968,7 @@ impl Breakpoint {
         }
     }
 
+    #[cfg(any())]
     fn to_proto(
         &self,
         _path: &Path,
@@ -1028,6 +1002,7 @@ impl Breakpoint {
         })
     }
 
+    #[cfg(any())]
     fn from_proto(breakpoint: client::proto::Breakpoint) -> Option<Self> {
         Some(Self {
             state: match proto::BreakpointState::try_from(breakpoint.state).ok() {

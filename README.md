@@ -1,48 +1,43 @@
-# Zed
+> [!IMPORTANT]
+> Remove this line to confirm you've reviewed this PR before submitting.
 
-[![Zed](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zed-industries/zed/main/assets/badge/v0.json)](https://zed.dev)
-[![CI](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml/badge.svg)](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml)
+# light-code
 
-Welcome to Zed, a high-performance, multiplayer code editor from the creators of [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter).
+AI coding 时代，写代码这件事正在被重新定义。
 
----
+越来越多的代码由 AI 生成，人的角色从「逐行编写」转向「审查、决策与驾驭」。在这个背景下我们发现：
 
-### Installation
+**人们不再需要一个沉重的全能 IDE，而是极其需要一个轻量、简单的代码编辑器。**
 
-On macOS, Linux, and Windows you can [download Zed directly](https://zed.dev/download) or install Zed via your local package manager ([macOS](https://zed.dev/docs/installation#macos)/[Linux](https://zed.dev/docs/linux#installing-via-a-package-manager)/[Windows](https://zed.dev/docs/windows#package-managers)).
+## 为什么选 Zed
 
-Other platforms are not yet available:
+我们调研后选择了 [Zed](https://github.com/zed-industries/zed) 作为基础：
 
-- Web ([tracking discussion](https://github.com/zed-industries/zed/discussions/26195))
+- **快**：Rust 编写，GPU 加速渲染，自研 gpui 框架，大文件与低配机器上依然流畅
+- **现代**：多语言 LSP、Tree-sitter 语法高亮、内建终端、远程开发，开箱即用
+- **有 Agent 基因**：内建 Agent Panel 与 ACP（Agent Client Protocol）生态，天然适配 AI coding 工作流
+- **开源**：GPL-3.0-or-later，代码结构清晰，可自由裁剪
 
-### Developing Zed
+## 我们的思路：做减法
 
-- [Building Zed for macOS](./docs/src/development/macos.md)
-- [Building Zed for Linux](./docs/src/development/linux.md)
-- [Building Zed for Windows](./docs/src/development/windows.md)
+Zed 是一个功能全面的编辑器，但全面意味着负担。我们的路线是：
 
-### Contributing
+- **移除不需要的代码**——裁掉我们不使用的组件，让仓库更小、构建更快、心智负担更低
+- **保留核心体验**——编辑、语言支持、终端、Agent 协作这些主线能力不动摇
+- **在此基础上开发特性化功能**——围绕「人与 AI 协作写代码」这一场景做加法，具体特性在规划中
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for ways you can contribute to Zed.
+> 项目的裁剪范围与特性路线图会随着开发逐步明确，本文档会持续更新。
 
-Also... we're hiring! Check out our [jobs](https://zed.dev/jobs) page for open roles.
+## 开发
 
-### Licensing
+本项目基于 Zed 源码构建，构建方式与上游一致：
 
-Zed source code is licensed primarily under GPL-3.0-or-later, with Apache-2.0 components where marked.
+- [macOS 构建指南](./docs/src/development/macos.md)
+- [Linux 构建指南](./docs/src/development/linux.md)
+- [Windows 构建指南](./docs/src/development/windows.md)
 
-License information for third party dependencies must be correctly provided for CI to pass.
+工具链版本由仓库根目录的 `rust-toolchain.toml` 锁定，建议直接使用 `rustup` 管理环境。
 
-We use [`cargo-about`](https://github.com/EmbarkStudios/cargo-about) to automatically comply with open source licenses. If CI is failing, check the following:
+## 许可证
 
-- Is it showing a `no license specified` error for a crate you've created? If so, add `publish = false` under `[package]` in your crate's Cargo.toml.
-- Is the error `failed to satisfy license requirements` for a dependency? If so, first determine what license the project has and whether this system is sufficient to comply with this license's requirements. If you're unsure, ask a lawyer. Once you've verified that this system is acceptable add the license's SPDX identifier to the `accepted` array in `script/licenses/zed-licenses.toml`.
-- Is `cargo-about` unable to find the license for a dependency? If so, add a clarification field at the end of `script/licenses/zed-licenses.toml`, as specified in the [cargo-about book](https://embarkstudios.github.io/cargo-about/cli/generate/config.html#crate-configuration).
-
-## Sponsorship
-
-Zed is developed by **Zed Industries, Inc.**, a for-profit company.
-
-If you’d like to financially support the project, you can do so via GitHub Sponsors.
-Sponsorships go directly to Zed Industries and are used as general company revenue.
-There are no perks or entitlements associated with sponsorship.
+本仓库继承 Zed 的许可证体系：主体为 GPL-3.0-or-later，部分组件按其标注采用 Apache-2.0。修改与分发请遵循相应条款。

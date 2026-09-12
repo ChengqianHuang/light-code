@@ -758,6 +758,7 @@ async fn test_dynamic_document_highlight_registration(cx: &mut gpui::TestAppCont
 }
 
 #[gpui::test]
+#[cfg(any())]
 async fn test_dynamic_registration_sends_metadata_downstream_before_refresh(
     cx: &mut gpui::TestAppContext,
 ) {
@@ -3246,12 +3247,14 @@ async fn fetch_all_lsp_data(
     labels
 }
 
+#[cfg(any())]
 #[derive(Default)]
 struct RecordingProtoClient {
     sent: Mutex<Vec<&'static str>>,
     handler_set: Mutex<rpc::ProtoMessageHandlerSet>,
 }
 
+#[cfg(any())]
 impl rpc::ProtoClient for RecordingProtoClient {
     fn request(
         &self,

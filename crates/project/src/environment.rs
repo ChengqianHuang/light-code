@@ -1,10 +1,8 @@
 use anyhow::{Context as _, bail};
 use futures::{FutureExt, StreamExt as _, channel::mpsc, future::Shared};
 use language::Buffer;
-use remote::RemoteClient;
-use rpc::proto::{self, REMOTE_SERVER_PROJECT_ID};
 use std::{collections::VecDeque, path::Path, sync::Arc};
-use task::{Shell, shell_to_proto};
+use task::Shell;
 use util::{ResultExt, command::new_command};
 use worktree::Worktree;
 
@@ -20,12 +18,9 @@ use crate::{
 pub struct ProjectEnvironment {
     cli_environment: Option<HashMap<String, String>>,
     local_environments: HashMap<(Shell, Arc<Path>), Shared<Task<Option<HashMap<String, String>>>>>,
-    remote_environments: HashMap<(Shell, Arc<Path>), Shared<Task<Option<HashMap<String, String>>>>>,
     environment_error_messages: VecDeque<String>,
     environment_error_messages_tx: mpsc::UnboundedSender<String>,
     worktree_store: WeakEntity<WorktreeStore>,
-    remote_client: Option<WeakEntity<RemoteClient>>,
-    is_remote_project: bool,
     _tasks: Vec<Task<()>>,
 }
 
@@ -39,8 +34,6 @@ impl ProjectEnvironment {
     pub fn new(
         cli_environment: Option<HashMap<String, String>>,
         worktree_store: WeakEntity<WorktreeStore>,
-        remote_client: Option<WeakEntity<RemoteClient>>,
-        is_remote_project: bool,
         cx: &mut Context<Self>,
     ) -> Self {
         let (tx, mut rx) = mpsc::unbounded();
@@ -56,12 +49,9 @@ impl ProjectEnvironment {
         Self {
             cli_environment,
             local_environments: Default::default(),
-            remote_environments: Default::default(),
             environment_error_messages: Default::default(),
             environment_error_messages_tx: tx,
             worktree_store,
-            remote_client,
-            is_remote_project,
             _tasks: vec![task],
         }
     }
@@ -120,22 +110,8 @@ impl ProjectEnvironment {
             abs_path = parent.into();
         }
 
-        let remote_client = self.remote_client.as_ref().and_then(|it| it.upgrade());
-        match remote_client {
-            Some(remote_client) => remote_client.clone().read(cx).shell().map(|shell| {
-                self.remote_directory_environment(
-                    &Shell::Program(shell),
-                    abs_path,
-                    remote_client,
-                    cx,
-                )
-            }),
-            None if self.is_remote_project => {
-                Some(self.local_directory_environment(&Shell::System, abs_path, cx))
-            }
-            None => Some(self.local_directory_environment(&Shell::System, abs_path, cx)),
-        }
-        .unwrap_or_else(|| Task::ready(None).shared())
+        Some(self.local_directory_environment(&Shell::System, abs_path, cx))
+            .unwrap_or_else(|| Task::ready(None).shared())
     }
 
     pub fn directory_environment(
@@ -143,28 +119,13 @@ impl ProjectEnvironment {
         abs_path: Arc<Path>,
         cx: &mut App,
     ) -> Shared<Task<Option<HashMap<String, String>>>> {
-        let remote_client = self.remote_client.as_ref().and_then(|it| it.upgrade());
-        match remote_client {
-            Some(remote_client) => remote_client.clone().read(cx).shell().map(|shell| {
-                self.remote_directory_environment(
-                    &Shell::Program(shell),
-                    abs_path,
-                    remote_client,
-                    cx,
-                )
-            }),
-            None if self.is_remote_project => {
-                Some(self.local_directory_environment(&Shell::System, abs_path, cx))
-            }
-            None => self
-                .worktree_store
-                .read_with(cx, |worktree_store, cx| {
-                    worktree_store.find_worktree(&abs_path, cx)
-                })
-                .ok()
-                .map(|_| self.local_directory_environment(&Shell::System, abs_path, cx)),
-        }
-        .unwrap_or_else(|| Task::ready(None).shared())
+        self.worktree_store
+            .read_with(cx, |worktree_store, cx| {
+                worktree_store.find_worktree(&abs_path, cx)
+            })
+            .ok()
+            .map(|_| self.local_directory_environment(&Shell::System, abs_path, cx))
+            .unwrap_or_else(|| Task::ready(None).shared())
     }
 
     /// Returns the project environment using the default worktree path.
@@ -243,38 +204,6 @@ impl ProjectEnvironment {
                     }
 
                     shell_env
-                })
-                .shared()
-            })
-            .clone()
-    }
-
-    pub fn remote_directory_environment(
-        &mut self,
-        shell: &Shell,
-        abs_path: Arc<Path>,
-        remote_client: Entity<RemoteClient>,
-        cx: &mut App,
-    ) -> Shared<Task<Option<HashMap<String, String>>>> {
-        if cfg!(any(test, feature = "test-support")) {
-            return Task::ready(Some(HashMap::default())).shared();
-        }
-
-        self.remote_environments
-            .entry((shell.clone(), abs_path.clone()))
-            .or_insert_with(|| {
-                let response =
-                    remote_client
-                        .read(cx)
-                        .proto_client()
-                        .request(proto::GetDirectoryEnvironment {
-                            project_id: REMOTE_SERVER_PROJECT_ID,
-                            shell: Some(shell_to_proto(shell.clone())),
-                            directory: abs_path.to_string_lossy().to_string(),
-                        });
-                cx.background_spawn(async move {
-                    let environment = response.await.log_err()?;
-                    Some(environment.environment.into_iter().collect())
                 })
                 .shared()
             })

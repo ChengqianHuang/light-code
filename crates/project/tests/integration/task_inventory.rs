@@ -610,7 +610,6 @@ async fn test_zed_tasks_take_precedence_over_vscode(cx: &mut TestAppContext) {
 
 fn init_test(_cx: &mut TestAppContext) {
     zlog::init_test();
-    TaskStore::init(None);
 }
 
 fn resolved_task_names(

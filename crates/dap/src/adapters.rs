@@ -111,25 +111,7 @@ pub struct TcpArguments {
     pub timeout: Option<u64>,
 }
 
-impl TcpArguments {
-    pub fn from_proto(proto: proto::TcpHost) -> anyhow::Result<Self> {
-        let host = TcpArgumentsTemplate::from_proto(proto)?;
-        Ok(TcpArguments {
-            host: host.host.context("missing host")?,
-            port: host.port.context("missing port")?,
-            timeout: host.timeout,
-        })
-    }
-
-    pub fn to_proto(&self) -> proto::TcpHost {
-        TcpArgumentsTemplate {
-            host: Some(self.host),
-            port: Some(self.port),
-            timeout: self.timeout,
-        }
-        .to_proto()
-    }
-}
+impl TcpArguments {}
 
 /// Represents a debuggable binary/process (what process is going to be debugged and with what arguments).
 ///
@@ -166,27 +148,6 @@ impl DebugTaskDefinition {
             config: self.config.clone(),
         }
     }
-
-    pub fn to_proto(&self) -> proto::DebugTaskDefinition {
-        proto::DebugTaskDefinition {
-            label: self.label.clone().into(),
-            config: self.config.to_string(),
-            tcp_connection: self.tcp_connection.clone().map(|v| v.to_proto()),
-            adapter: self.adapter.clone().0.into(),
-        }
-    }
-
-    pub fn from_proto(proto: proto::DebugTaskDefinition) -> Result<Self> {
-        Ok(Self {
-            label: proto.label.into(),
-            config: serde_json::from_str(&proto.config)?,
-            tcp_connection: proto
-                .tcp_connection
-                .map(TcpArgumentsTemplate::from_proto)
-                .transpose()?,
-            adapter: DebugAdapterName(proto.adapter.into()),
-        })
-    }
 }
 
 /// Created from a [DebugTaskDefinition], this struct describes how to spawn the debugger to create a previously-configured debug session.
@@ -200,59 +161,7 @@ pub struct DebugAdapterBinary {
     pub request_args: StartDebuggingRequestArguments,
 }
 
-impl DebugAdapterBinary {
-    pub fn from_proto(binary: proto::DebugAdapterBinary) -> anyhow::Result<Self> {
-        let request = match binary.launch_type() {
-            proto::debug_adapter_binary::LaunchType::Launch => {
-                StartDebuggingRequestArgumentsRequest::Launch
-            }
-            proto::debug_adapter_binary::LaunchType::Attach => {
-                StartDebuggingRequestArgumentsRequest::Attach
-            }
-        };
-
-        Ok(DebugAdapterBinary {
-            command: binary.command,
-            arguments: binary.arguments,
-            envs: binary.envs.into_iter().collect(),
-            connection: binary
-                .connection
-                .map(TcpArguments::from_proto)
-                .transpose()?,
-            request_args: StartDebuggingRequestArguments {
-                configuration: serde_json::from_str(&binary.configuration)?,
-                request,
-            },
-            cwd: binary.cwd.map(|cwd| cwd.into()),
-        })
-    }
-
-    pub fn to_proto(&self) -> proto::DebugAdapterBinary {
-        proto::DebugAdapterBinary {
-            command: self.command.clone(),
-            arguments: self.arguments.clone(),
-            envs: self
-                .envs
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-            cwd: self
-                .cwd
-                .as_ref()
-                .map(|cwd| cwd.to_string_lossy().into_owned()),
-            connection: self.connection.as_ref().map(|c| c.to_proto()),
-            launch_type: match self.request_args.request {
-                StartDebuggingRequestArgumentsRequest::Launch => {
-                    proto::debug_adapter_binary::LaunchType::Launch.into()
-                }
-                StartDebuggingRequestArgumentsRequest::Attach => {
-                    proto::debug_adapter_binary::LaunchType::Attach.into()
-                }
-            },
-            configuration: self.request_args.configuration.to_string(),
-        }
-    }
-}
+impl DebugAdapterBinary {}
 
 #[derive(Debug, Clone)]
 pub struct AdapterVersion {

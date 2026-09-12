@@ -1,14 +1,11 @@
 #![allow(clippy::format_collect)]
 
-mod agent_registry_store;
 mod bookmark_store;
 mod color_extractor;
-mod context_server_store;
 mod debugger;
 mod dynamic_registration;
 mod git_store;
 mod image_store;
-mod lsp_command;
 mod lsp_store;
 mod manifest_tree;
 mod project_search;
@@ -1004,7 +1001,6 @@ async fn test_git_provider_project_setting(cx: &mut gpui::TestAppContext) {
 #[gpui::test]
 async fn test_managing_project_specific_settings(cx: &mut gpui::TestAppContext) {
     init_test(cx);
-    TaskStore::init(None);
 
     let fs = FakeFs::new(cx.executor());
     fs.insert_tree(
@@ -1207,7 +1203,6 @@ async fn test_managing_project_specific_settings(cx: &mut gpui::TestAppContext) 
 #[gpui::test]
 async fn test_invalid_local_tasks_shows_toast_with_doc_link(cx: &mut gpui::TestAppContext) {
     init_test(cx);
-    TaskStore::init(None);
 
     // We need to start with a valid `.zed/tasks.json` file as otherwise the
     // event is emitted before we havd a chance to setup the event subscription.
@@ -1265,7 +1260,6 @@ async fn test_invalid_local_tasks_shows_toast_with_doc_link(cx: &mut gpui::TestA
 #[gpui::test]
 async fn test_fallback_to_single_worktree_tasks(cx: &mut gpui::TestAppContext) {
     init_test(cx);
-    TaskStore::init(None);
 
     let fs = FakeFs::new(cx.executor());
     fs.insert_tree(
@@ -8587,6 +8581,7 @@ async fn test_save_as_existing_file(cx: &mut gpui::TestAppContext) {
 }
 
 #[gpui::test(retries = 5)]
+#[cfg(any())]
 async fn test_rescan_and_remote_updates(cx: &mut gpui::TestAppContext) {
     use worktree::WorktreeModelHandle as _;
 

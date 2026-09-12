@@ -14,8 +14,6 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
-channel.workspace = true
-client.workspace = true
 collections.workspace = true
 editor.workspace = true
 file_icons.workspace = true

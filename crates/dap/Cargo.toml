@@ -27,7 +27,6 @@ async-compression.workspace = true
 async-pipe = { workspace = true, optional = true }
 async-tar.workspace = true
 async-trait.workspace = true
-client.workspace = true
 collections.workspace = true
 dap-types.workspace = true
 fs.workspace = true
@@ -39,7 +38,6 @@ log.workspace = true
 node_runtime.workspace = true
 parking_lot.workspace = true
 paths.workspace = true
-proto.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use gpui::{App, AsyncApp, Entity};
 use language::Buffer;
 use lsp::{AdapterServerCapabilities, LanguageServer, LanguageServerId};
-use rpc::proto::{self, PeerId};
 use serde::{Deserialize, Serialize};
 use text::BufferId;
 
@@ -71,7 +70,6 @@ pub struct ExpandAbbreviation {
 impl LspCommand for ExpandAbbreviation {
     type Response = Option<String>;
     type LspRequest = LspExpandAbbreviation;
-    type ProtoRequest = proto::LspExtExpandAbbreviation;
 
     fn display_name(&self) -> &str {
         "Expand Emmet abbreviation"
@@ -123,64 +121,5 @@ impl LspCommand for ExpandAbbreviation {
         _: AsyncApp,
     ) -> anyhow::Result<Option<String>> {
         Ok(message.filter(|expansion| !expansion.is_empty()))
-    }
-
-    fn to_proto(&self, project_id: u64, buffer: &Buffer) -> proto::LspExtExpandAbbreviation {
-        proto::LspExtExpandAbbreviation {
-            project_id,
-            buffer_id: buffer.remote_id().into(),
-            abbreviation: self.abbreviation.clone(),
-            text: self.text.clone().unwrap_or_default(),
-            language: self.language.clone(),
-            server_id: self.server_id.to_proto(),
-            indent: self.indent.clone(),
-            base_indent: self.base_indent.clone(),
-            comment_filter: self.comment_filter,
-            bem_filter: self.bem_filter,
-        }
-    }
-
-    async fn from_proto(
-        message: Self::ProtoRequest,
-        _: Entity<LspStore>,
-        _: Entity<Buffer>,
-        _: AsyncApp,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            abbreviation: message.abbreviation,
-            text: (!message.text.is_empty()).then_some(message.text),
-            language: message.language,
-            server_id: LanguageServerId::from_proto(message.server_id),
-            indent: message.indent,
-            base_indent: message.base_indent,
-            comment_filter: message.comment_filter,
-            bem_filter: message.bem_filter,
-        })
-    }
-
-    fn response_to_proto(
-        response: Option<String>,
-        _: &mut LspStore,
-        _: PeerId,
-        _: &clock::Global,
-        _: &mut App,
-    ) -> proto::LspExtExpandAbbreviationResponse {
-        proto::LspExtExpandAbbreviationResponse {
-            expansion: response,
-        }
-    }
-
-    async fn response_from_proto(
-        self,
-        message: proto::LspExtExpandAbbreviationResponse,
-        _: Entity<LspStore>,
-        _: Entity<Buffer>,
-        _: AsyncApp,
-    ) -> anyhow::Result<Option<String>> {
-        Ok(message.expansion.filter(|expansion| !expansion.is_empty()))
-    }
-
-    fn buffer_id_from_proto(message: &proto::LspExtExpandAbbreviation) -> Result<BufferId> {
-        BufferId::new(message.buffer_id)
     }
 }
