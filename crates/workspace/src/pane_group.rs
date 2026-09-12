@@ -1,6 +1,5 @@
 use crate::{
-    AnyActiveCall, AppState, CollaboratorId, FollowerState, Pane, ParticipantLocation, Workspace,
-    WorkspaceSettings,
+    AppState, Pane, Workspace, WorkspaceSettings,
     notifications::DetachAndPromptErr,
     pane_group::element::pane_axis,
     workspace_settings::{PaneSplitDirectionHorizontal, PaneSplitDirectionVertical},
@@ -323,8 +322,6 @@ impl Member {
 #[derive(Clone, Copy)]
 pub struct PaneRenderContext<'a> {
     pub project: &'a Entity<Project>,
-    pub follower_states: &'a HashMap<CollaboratorId, FollowerState>,
-    pub active_call: Option<&'a dyn AnyActiveCall>,
     pub active_pane: &'a Entity<Pane>,
     pub app_state: &'a Arc<AppState>,
     pub workspace: &'a WeakEntity<Workspace>,
@@ -369,6 +366,7 @@ impl PaneLeaderDecorator for ActivePaneDecorator<'_> {
     }
 }
 
+#[cfg(any())]
 impl PaneLeaderDecorator for PaneRenderContext<'_> {
     fn decorate(&self, pane: &Entity<Pane>, cx: &App) -> LeaderDecoration {
         let follower_state = self.follower_states.iter().find_map(|(leader_id, state)| {
@@ -486,6 +484,20 @@ impl PaneLeaderDecorator for PaneRenderContext<'_> {
             status_box,
             border: Some(leader_color),
         }
+    }
+
+    fn active_pane(&self) -> &Entity<Pane> {
+        self.active_pane
+    }
+
+    fn workspace(&self) -> &WeakEntity<Workspace> {
+        self.workspace
+    }
+}
+
+impl PaneLeaderDecorator for PaneRenderContext<'_> {
+    fn decorate(&self, _: &Entity<Pane>, _: &App) -> LeaderDecoration {
+        LeaderDecoration::default()
     }
 
     fn active_pane(&self) -> &Entity<Pane> {

@@ -17,6 +17,7 @@ pub mod language_settings;
 mod manifest;
 pub mod modeline;
 mod outline;
+pub mod proto;
 mod runnable;
 mod syntax_map;
 mod task_context;

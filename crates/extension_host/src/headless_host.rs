@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::{Context as _, Result};
-use client::{TypedEnvelope, proto};
 use collections::{BTreeMap, FxHasher, HashSet};
 use extension::{
     Event, Extension, ExtensionDebugAdapterProviderProxy, ExtensionEvents, ExtensionHostProxy,
@@ -34,8 +33,7 @@ pub struct ExtensionVersion {
     pub content_fingerprint: Option<u64>,
 }
 
-pub(crate) const STALE_UPLOAD_TTL: Duration =
-    Duration::from_secs(crate::REMOTE_SYNC_TIMEOUT.as_secs() * 3);
+pub(crate) const STALE_UPLOAD_TTL: Duration = Duration::from_secs(3 * 60 * 60);
 
 pub struct HeadlessExtensionStore {
     pub fs: Arc<dyn Fs>,
@@ -618,6 +616,7 @@ impl HeadlessExtensionStore {
         })
     }
 
+    #[cfg(any())]
     pub async fn handle_sync_extensions(
         extension_store: Entity<HeadlessExtensionStore>,
         envelope: TypedEnvelope<proto::SyncExtensions>,
@@ -659,6 +658,7 @@ impl HeadlessExtensionStore {
         })
     }
 
+    #[cfg(any())]
     pub async fn handle_install_extension(
         extensions: Entity<HeadlessExtensionStore>,
         envelope: TypedEnvelope<proto::InstallExtension>,

@@ -14,7 +14,6 @@ use gpui::{
     Subscription, Task, TextStyle, UniformList, UniformListScrollHandle, WeakEntity, actions,
     anchored, deferred, uniform_list,
 };
-use notifications::status_toast::StatusToast;
 use project::debugger::{MemoryCell, dap_command::DataBreakpointContext, session::Session};
 use settings::Settings;
 use theme_settings::ThemeSettings;
@@ -472,18 +471,15 @@ impl MemoryView {
                         let adapter_name = session.adapter();
                         // We cannot write memory with this adapter.
                         _ = self.workspace.update(cx, |this, cx| {
-                            this.toggle_status_toast(
-                                StatusToast::new(format!(
-                                    "Debug Adapter `{adapter_name}` does not support writing to memory"
-                                ), cx, |this, cx| {
-                                    cx.spawn(async move |this, cx| {
-                                        cx.background_executor().timer(Duration::from_secs(2)).await;
-                                        _ = this.update(cx, |_, cx| {
-                                            cx.emit(DismissEvent)
-                                        });
-                                    }).detach();
-                                    this.icon(Icon::new(IconName::XCircle).size(IconSize::Small).color(Color::Error))
-                                }),
+                            this.show_toast(
+                                workspace::Toast::new(
+                                    workspace::notifications::NotificationId::Named(
+                                        "debugger-memory-write-unsupported".into(),
+                                    ),
+                                    format!(
+                                        "Debug Adapter `{adapter_name}` does not support writing to memory"
+                                    ),
+                                ),
                                 cx,
                             );
                         });

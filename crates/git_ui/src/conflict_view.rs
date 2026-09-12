@@ -1,4 +1,3 @@
-use agent_settings::AgentSettings;
 use collections::{HashMap, HashSet};
 use editor::{
     ConflictsOurs, ConflictsOursMarker, ConflictsOuter, ConflictsTheirs, ConflictsTheirsMarker,
@@ -19,9 +18,6 @@ use std::{ops::Range, sync::Arc};
 use ui::{ButtonLike, Divider, Tooltip, prelude::*};
 use util::debug_panic;
 use workspace::{HideStatusItem, StatusItemView, Workspace, item::ItemHandle};
-use zed_actions::agent::{
-    ConflictContent, ResolveConflictedFilesWithAgent, ResolveConflictsWithAgent,
-};
 
 pub(crate) struct ConflictAddon {
     buffers: HashMap<BufferId, BufferConflicts>,
@@ -332,6 +328,7 @@ fn update_conflict_highlighting(
     );
 }
 
+#[cfg(any())]
 fn render_conflict_buttons(
     conflict: &ConflictRegion,
     editor: WeakEntity<Editor>,
@@ -454,6 +451,14 @@ fn render_conflict_buttons(
         .into_any()
 }
 
+fn render_conflict_buttons(
+    _conflict: &ConflictRegion,
+    _editor: WeakEntity<Editor>,
+    _cx: &mut BlockContext,
+) -> AnyElement {
+    Empty.into_any_element()
+}
+
 fn collect_conflicted_file_paths(project: &Project, cx: &App) -> Vec<String> {
     let git_store = project.git_store().read(cx);
     let mut paths = Vec::new();
@@ -567,11 +572,7 @@ impl MergeConflictIndicator {
                 | GitStoreEvent::RepositoryUpdated(_, RepositoryEvent::StatusesChanged, _)
         );
 
-        let agent_settings = AgentSettings::get_global(cx);
-        if !agent_settings.enabled(cx)
-            || !agent_settings.show_merge_conflict_indicator
-            || !conflicts_changed
-        {
+        if !conflicts_changed {
             return;
         }
 
@@ -596,6 +597,7 @@ impl MergeConflictIndicator {
         }
     }
 
+    #[cfg(any())]
     fn resolve_with_agent(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         window.dispatch_action(
             Box::new(ResolveConflictedFilesWithAgent {
@@ -613,6 +615,7 @@ impl MergeConflictIndicator {
     }
 }
 
+#[cfg(any())]
 impl Render for MergeConflictIndicator {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let agent_settings = AgentSettings::get_global(cx);
@@ -688,6 +691,12 @@ impl Render for MergeConflictIndicator {
     }
 }
 
+impl Render for MergeConflictIndicator {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        Empty.into_any_element()
+    }
+}
+
 impl StatusItemView for MergeConflictIndicator {
     fn set_active_pane_item(
         &mut self,
@@ -698,11 +707,6 @@ impl StatusItemView for MergeConflictIndicator {
     }
 
     fn hide_setting(&self, _: &App) -> Option<HideStatusItem> {
-        Some(HideStatusItem::new(|settings| {
-            settings
-                .agent
-                .get_or_insert_default()
-                .show_merge_conflict_indicator = Some(false);
-        }))
+        None
     }
 }

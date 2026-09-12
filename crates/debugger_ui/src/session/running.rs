@@ -42,7 +42,6 @@ use project::{
     DebugScenarioContext, Project, WorktreeId,
     debugger::session::{self, Session, SessionEvent, SessionStateEvent, ThreadId, ThreadStatus},
 };
-use rpc::proto::ViewId;
 use serde_json::Value;
 use settings::Settings;
 use stack_frame_list::StackFrameList;
@@ -69,7 +68,6 @@ pub struct RunningState {
     session: Entity<Session>,
     thread_id: Option<ThreadId>,
     focus_handle: FocusHandle,
-    _remote_id: Option<ViewId>,
     workspace: WeakEntity<Workspace>,
     project: WeakEntity<Project>,
     session_id: SessionId,
@@ -999,7 +997,6 @@ impl RunningState {
             variable_list,
             _subscriptions,
             thread_id: None,
-            _remote_id: None,
             stack_frame_list,
             session_id,
             panes,
@@ -1063,11 +1060,7 @@ impl RunningState {
         let weak_project = project.downgrade();
         let weak_workspace = workspace.downgrade();
         let is_windows = project.read(cx).path_style(cx).is_windows();
-        let remote_shell = project
-            .read(cx)
-            .remote_client()
-            .as_ref()
-            .and_then(|remote| remote.read(cx).shell());
+        let remote_shell = None;
 
         cx.spawn_in(window, async move |this, cx| {
             let DebugScenario {

@@ -26,6 +26,7 @@ members = [
     "crates/debugger_ui",
     "crates/diagnostics",
     "crates/editor",
+    "crates/edit_prediction_types",
     "crates/encoding_selector",
     "crates/env_var",
     "crates/etw_tracing",
@@ -102,12 +103,14 @@ members = [
     "crates/project",
     "crates/project_panel",
     "crates/project_symbols",
+    "crates/proto",
     "crates/recent_projects",
     "crates/refineable",
     "crates/refineable/derive_refineable",
     "crates/release_channel",
     "crates/reqwest_client",
     "crates/rope",
+    "crates/rpc",
     "crates/sandbox",
     "crates/scheduler",
     "crates/search",
@@ -159,6 +162,7 @@ members = [
     "crates/workspace",
     "crates/worktree",
     "crates/zed",
+    "crates/zeta_prompt",
     "crates/zed_actions",
     "crates/zed_credentials_provider",
     "crates/zed_env_vars",
@@ -223,6 +227,7 @@ debugger_ui = { path = "crates/debugger_ui" }
 derive_refineable = { path = "crates/refineable/derive_refineable" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
+edit_prediction_types = { path = "crates/edit_prediction_types" }
 encoding_selector = { path = "crates/encoding_selector" }
 env_var = { path = "crates/env_var" }
 etw_tracing = { path = "crates/etw_tracing" }
@@ -299,12 +304,14 @@ prettier = { path = "crates/prettier" }
 project = { path = "crates/project" }
 project_panel = { path = "crates/project_panel" }
 project_symbols = { path = "crates/project_symbols" }
+proto = { path = "crates/proto" }
 recent_projects = { path = "crates/recent_projects" }
 refineable = { path = "crates/refineable" }
 release_channel = { path = "crates/release_channel" }
 reqwest_client = { path = "crates/reqwest_client" }
 rodio = { git = "https://github.com/RustAudio/rodio", rev = "e50e726ddd0292f6ef9de0dda6b90af4ed1fb66a", features = ["wav", "playback", "wav_output", "recording"] }
 rope = { path = "crates/rope" }
+rpc = { path = "crates/rpc" }
 sandbox = { path = "crates/sandbox" }
 scheduler = { path = "crates/scheduler" }
 search = { path = "crates/search" }
@@ -355,6 +362,7 @@ which_key = { path = "crates/which_key" }
 workspace = { path = "crates/workspace" }
 worktree = { path = "crates/worktree" }
 zed_actions = { path = "crates/zed_actions" }
+zeta_prompt = { path = "crates/zeta_prompt" }
 zed_credentials_provider = { path = "crates/zed_credentials_provider" }
 zed_env_vars = { path = "crates/zed_env_vars" }
 zlog = { path = "crates/zlog" }
@@ -370,7 +378,6 @@ accesskit = { version = "0.24.0", features = ["enumn"] }
 accesskit_macos = "0.26.0"
 accesskit_unix = "0.22"
 accesskit_windows = "0.34"
-agent-client-protocol = { version = "=2.0.0", features = ["unstable"] }
 aho-corasick = "1.1"
 alacritty_terminal = { git = "https://github.com/zed-industries/alacritty", rev = "4c129667ce56611becdc82de6e28218c80e2e88f" }
 any_vec = "0.14"

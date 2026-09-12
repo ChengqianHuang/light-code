@@ -1098,10 +1098,6 @@ impl language::File for GitBlob {
         self.worktree_id
     }
 
-    fn to_proto(&self, _cx: &App) -> language::proto::File {
-        unimplemented!()
-    }
-
     fn is_private(&self) -> bool {
         false
     }

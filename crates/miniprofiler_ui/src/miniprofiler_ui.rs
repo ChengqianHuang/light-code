@@ -294,15 +294,7 @@ impl ProfilerWindow {
     }
 
     fn remote_proto_client(&self, cx: &App) -> Option<AnyProtoClient> {
-        let workspace = self.workspace.as_ref()?;
-        workspace
-            .read_with(cx, |workspace, cx| {
-                let project = workspace.project().read(cx);
-                let remote_client = project.remote_client()?;
-                Some(remote_client.read(cx).proto_client())
-            })
-            .log_err()
-            .flatten()
+        None
     }
 
     fn start_remote_polling(&mut self, cx: &mut Context<Self>) {

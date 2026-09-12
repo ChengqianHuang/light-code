@@ -31,7 +31,6 @@ pub mod yarn;
 use dap::inline_value::{InlineValueLocation, VariableLookupKind, VariableScope};
 use itertools::{Either, Itertools};
 
-use crate::lsp_store::LanguageServerUpdateMessage;
 use crate::{
     bookmark_store::BookmarkStore,
     git_store::GitStore,
@@ -151,7 +150,7 @@ pub use lsp_command::{CallHierarchyItem, IncomingCall, OutgoingCall};
 pub use lsp_store::{
     DiagnosticSummary, InvalidationStrategy, LanguageServerLogType, LanguageServerProgress,
     LanguageServerPromptRequest, LanguageServerShowDocumentRequest, LanguageServerStatus,
-    LanguageServerToQuery, LspStore, LspStoreEvent, ProgressToken,
+    LanguageServerToQuery, LanguageServerUpdateMessage, LspStore, LspStoreEvent, ProgressToken,
     SERVER_PROGRESS_THROTTLE_TIMEOUT,
 };
 pub use toolchain_store::{ToolchainStore, Toolchains};
@@ -1940,9 +1939,17 @@ impl Project {
         true
     }
 
-    /// Whether this project is a remote server (not counting collab).
     #[inline]
-    /// Whether this project is from collab (not counting remote servers).
+    pub fn is_via_remote_server(&self) -> bool {
+        false
+    }
+
+    #[inline]
+    pub fn is_via_wsl_with_host_interop(&self, _cx: &App) -> bool {
+        false
+    }
+
+    /// Whether this project is from collaboration.
     #[inline]
     pub fn is_via_collab(&self) -> bool {
         false

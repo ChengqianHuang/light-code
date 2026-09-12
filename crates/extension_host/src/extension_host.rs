@@ -9,7 +9,6 @@ mod extension_store_test;
 use anyhow::{Context as _, Result, anyhow, bail};
 use async_compression::futures::bufread::GzipDecoder;
 use async_tar::Archive;
-use client::{Client, proto, telemetry::Telemetry};
 use cloud_api_types::{ExtensionMetadata, ExtensionProvides, GetExtensionsResponse};
 use collections::{BTreeMap, BTreeSet, FxHashSet, HashMap, HashSet, btree_map};
 pub use extension::ExtensionManifest;
@@ -42,14 +41,12 @@ use language::{
 use node_runtime::NodeRuntime;
 use project::{ContextProviderWithTasks, Project};
 use release_channel::ReleaseChannel;
-use remote::{ConnectionState, RemoteClient, RemoteClientEvent};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use settings::{SemanticTokenRules, Settings, SettingsStore};
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 use std::sync::LazyLock;
-use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::{
     borrow::Cow,
     cmp::Ordering,
@@ -59,10 +56,7 @@ use std::{
 };
 use task::TaskTemplates;
 use url::Url;
-use util::{
-    PathExt, ResultExt,
-    paths::{PathStyle, RemotePathBuf},
-};
+use util::{PathExt, ResultExt};
 use wasm_host::{
     WasmExtension, WasmHost,
     wit::{is_supported_wasm_api_version, wasm_api_version_range},
@@ -77,30 +71,6 @@ use crate::headless_host::hash_directory_contents;
 
 pub const RELOAD_DEBOUNCE_DURATION: Duration = Duration::from_millis(200);
 const FS_WATCH_LATENCY: Duration = Duration::from_millis(100);
-pub(crate) const REMOTE_SYNC_RETRY_DELAY: Duration = Duration::from_secs(1);
-pub(crate) const MAX_REMOTE_SYNC_RETRY_DELAY: Duration = Duration::from_secs(60);
-pub(crate) const MAX_REMOTE_SYNC_ATTEMPTS: usize = 10;
-pub(crate) const REMOTE_SYNC_TIMEOUT: Duration = Duration::from_secs(60 * 60);
-
-pub(crate) fn remote_sync_retry_delay(attempts: usize) -> Duration {
-    let exponential = REMOTE_SYNC_RETRY_DELAY * 2u32.saturating_pow(attempts.min(30) as u32);
-    exponential.min(MAX_REMOTE_SYNC_RETRY_DELAY)
-}
-
-async fn with_remote_sync_timeout<T>(
-    cx: &AsyncApp,
-    timeout: Duration,
-    description: &str,
-    future: impl Future<Output = Result<T>>,
-) -> Result<T> {
-    let timer = cx.background_executor().timer(timeout).fuse();
-    let future = future.fuse();
-    futures::pin_mut!(timer, future);
-    select_biased! {
-        result = future => result,
-        _ = timer => anyhow::bail!("timed out after {timeout:?} while {description}"),
-    }
-}
 
 /// The current extension [`SchemaVersion`] supported by Zed.
 const CURRENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
@@ -163,7 +133,6 @@ pub struct ExtensionStore {
     pub extension_index: ExtensionIndex,
     pub fs: Arc<dyn Fs>,
     pub http_client: Arc<HttpClientWithUrl>,
-    pub telemetry: Option<Arc<Telemetry>>,
     pub reload_tx: UnboundedSender<Option<Arc<str>>>,
     pub reload_complete_senders: Vec<oneshot::Sender<()>>,
     pub installed_dir: PathBuf,
@@ -174,20 +143,7 @@ pub struct ExtensionStore {
     pub wasm_host: Arc<WasmHost>,
     pub wasm_extensions: Vec<(Arc<ExtensionManifest>, WasmExtension)>,
     pub tasks: Vec<Task<()>>,
-    pub(crate) remote_clients: HashMap<EntityId, RemoteClientState>,
     pub(crate) initial_index_load: Shared<Task<()>>,
-}
-
-pub(crate) struct RemoteClientState {
-    dirty_tx: UnboundedSender<RemoteSyncSignal>,
-    _task: Task<()>,
-    _subscriptions: Subscription,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum RemoteSyncSignal {
-    IndexChanged,
-    Reconnected,
 }
 
 #[derive(Clone, Copy)]
@@ -219,59 +175,6 @@ pub struct ExtensionIndex {
     #[serde(default)]
     pub icon_themes: BTreeMap<Arc<str>, ExtensionIndexIconThemeEntry>,
     pub languages: BTreeMap<LanguageName, ExtensionIndexLanguageEntry>,
-}
-
-impl ExtensionIndex {
-    fn extensions_to_sync_to_remote(&self) -> RemoteSyncExtensions {
-        let mut extensions = RemoteSyncExtensions::default();
-
-        for (id, entry) in &self.extensions {
-            if entry.manifest.remote_load().is_some() {
-                extensions.insert_extension_and_language_dependencies(self, id);
-            }
-        }
-
-        extensions
-    }
-}
-
-#[derive(Default)]
-struct RemoteSyncExtensions(HashMap<Arc<str>, ExtensionIndexEntry>);
-
-impl RemoteSyncExtensions {
-    fn insert_extension_and_language_dependencies(
-        &mut self,
-        index: &ExtensionIndex,
-        id: &Arc<str>,
-    ) {
-        if self.0.contains_key(id) {
-            return;
-        }
-
-        let Some(entry) = index.extensions.get(id) else {
-            return;
-        };
-
-        self.0.insert(id.clone(), entry.clone());
-
-        let Some(remote_load) = entry.manifest.remote_load() else {
-            return;
-        };
-
-        for language in remote_load.language_dependencies() {
-            if let Some(language_entry) = index.languages.get(&language) {
-                self.insert_extension_and_language_dependencies(index, &language_entry.extension);
-            }
-        }
-    }
-
-    fn into_entries(self) -> impl Iterator<Item = (Arc<str>, ExtensionIndexEntry)> {
-        self.0.into_iter()
-    }
-
-    fn contains(&self, id: &str) -> bool {
-        self.0.contains_key(id)
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
@@ -314,7 +217,7 @@ actions!(
 pub fn init(
     extension_host_proxy: Arc<ExtensionHostProxy>,
     fs: Arc<dyn Fs>,
-    client: Arc<Client>,
+    http_client: Arc<HttpClientWithUrl>,
     node_runtime: NodeRuntime,
     cx: &mut App,
 ) {
@@ -324,9 +227,8 @@ pub fn init(
             None,
             extension_host_proxy,
             fs,
-            client.http_client(),
-            client.http_client(),
-            Some(client.telemetry().clone()),
+            http_client.clone(),
+            http_client,
             node_runtime,
             cx,
         )
@@ -338,16 +240,6 @@ pub fn init(
     });
 
     cx.set_global(GlobalExtensionStore(store));
-
-    cx.observe_new::<Project>(|project, _window, cx| {
-        let Some(client) = project.remote_client() else {
-            return;
-        };
-        if let Some(store) = ExtensionStore::try_global(cx) {
-            store.update(cx, |store, cx| store.register_remote_client(client, cx));
-        }
-    })
-    .detach();
 }
 
 impl ExtensionStore {
@@ -367,7 +259,6 @@ impl ExtensionStore {
         fs: Arc<dyn Fs>,
         http_client: Arc<HttpClientWithUrl>,
         builder_client: Arc<dyn HttpClient>,
-        telemetry: Option<Arc<Telemetry>>,
         node_runtime: NodeRuntime,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -399,11 +290,9 @@ impl ExtensionStore {
             wasm_extensions: Vec::new(),
             fs,
             http_client,
-            telemetry,
             reload_tx,
             tasks: Vec::new(),
 
-            remote_clients: HashMap::default(),
             initial_index_load: Task::ready(()).shared(),
         };
 
@@ -1311,15 +1200,6 @@ impl ExtensionStore {
             extensions_to_unload.len() - reload_count
         );
 
-        let old_remote_sync_extensions = old_index.extensions_to_sync_to_remote();
-        let new_remote_sync_extensions = new_index.extensions_to_sync_to_remote();
-        let remote_sync_changed = extensions_to_unload
-            .iter()
-            .any(|id| old_remote_sync_extensions.contains(id.as_ref()))
-            || extensions_to_load
-                .iter()
-                .any(|id| new_remote_sync_extensions.contains(id.as_ref()));
-
         let extension_ids = extensions_to_load
             .iter()
             .filter_map(|id| {
@@ -1541,9 +1421,6 @@ impl ExtensionStore {
         self.extension_index = new_index;
         cx.notify();
         cx.emit(Event::ExtensionsUpdated);
-        if remote_sync_changed {
-            self.sync_remote_clients();
-        }
 
         cx.spawn(async move |this, cx| {
             let semantic_token_rules_to_add = cx
@@ -1909,6 +1786,7 @@ impl ExtensionStore {
         Ok(())
     }
 
+    #[cfg(any())]
     fn prepare_remote_extension(
         &mut self,
         extension_id: Arc<str>,
@@ -1988,6 +1866,7 @@ impl ExtensionStore {
         })
     }
 
+    #[cfg(any())]
     fn sync_remote_clients(&mut self) {
         for state in self.remote_clients.values() {
             state
@@ -1997,6 +1876,7 @@ impl ExtensionStore {
         }
     }
 
+    #[cfg(any())]
     async fn reconcile_remote_client(
         this: WeakEntity<Self>,
         client: WeakEntity<RemoteClient>,
@@ -2072,6 +1952,7 @@ impl ExtensionStore {
         }
     }
 
+    #[cfg(any())]
     async fn sync_extensions_to_remote(
         this: &WeakEntity<Self>,
         client: WeakEntity<RemoteClient>,
@@ -2156,6 +2037,7 @@ impl ExtensionStore {
         anyhow::Ok(())
     }
 
+    #[cfg(any())]
     async fn prepare_dev_extension_payload(
         this: &WeakEntity<Self>,
         id: &Arc<str>,
@@ -2180,6 +2062,7 @@ impl ExtensionStore {
         Ok((payload_dir, fingerprint))
     }
 
+    #[cfg(any())]
     async fn install_extension_on_remote(
         this: &WeakEntity<Self>,
         client: &WeakEntity<RemoteClient>,
@@ -2215,6 +2098,7 @@ impl ExtensionStore {
         result
     }
 
+    #[cfg(any())]
     async fn upload_extension_to_remote(
         this: &WeakEntity<Self>,
         client: &WeakEntity<RemoteClient>,
@@ -2282,6 +2166,7 @@ impl ExtensionStore {
         Ok(())
     }
 
+    #[cfg(any())]
     pub fn register_remote_client(&mut self, client: Entity<RemoteClient>, cx: &mut Context<Self>) {
         let entity_id = client.entity_id();
         if self.remote_clients.contains_key(&entity_id) {

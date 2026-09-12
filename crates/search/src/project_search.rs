@@ -3473,11 +3473,7 @@ fn is_buffer_stale(
         !workspace.read(cx).items(cx).any(|item| {
             item.buffer_kind(cx) == ItemBufferKind::Singleton
                 && item.project_item_model_ids(cx).contains(&buffer_entity_id)
-        }) && !project
-            .read(cx)
-            .buffer_store()
-            .read(cx)
-            .is_shared(buffer.remote_id(), cx)
+        })
     } else {
         false
     }

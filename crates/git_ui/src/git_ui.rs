@@ -147,32 +147,9 @@ pub fn init(cx: &mut App) {
         workspace.register_action(
             |workspace, action: &zed_actions::OpenWorktreeInNewWindow, window, cx| {
                 let path = action.path.clone();
-                let is_remote = !workspace.project().read(cx).is_local();
-
-                if is_remote {
-                    let connection_options =
-                        workspace.project().read(cx).remote_connection_options(cx);
-                    let app_state = workspace.app_state().clone();
-                    let workspace_handle = workspace.weak_handle();
-                    cx.spawn_in(window, async move |_, cx| {
-                        if let Some(connection_options) = connection_options {
-                            git_ui_core::worktree_picker::open_remote_worktree(
-                                connection_options,
-                                vec![path],
-                                app_state,
-                                workspace_handle,
-                                cx,
-                            )
-                            .await?;
-                        }
-                        anyhow::Ok(())
-                    })
+                workspace
+                    .open_workspace_for_paths(OpenMode::NewWindow, vec![path], window, cx)
                     .detach_and_log_err(cx);
-                } else {
-                    workspace
-                        .open_workspace_for_paths(OpenMode::NewWindow, vec![path], window, cx)
-                        .detach_and_log_err(cx);
-                }
             },
         );
 

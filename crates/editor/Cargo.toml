@@ -41,6 +41,7 @@ collections.workspace = true
 convert_case.workspace = true
 dap.workspace = true
 db.workspace = true
+edit_prediction_types.workspace = true
 buffer_diff.workspace = true
 emojis.workspace = true
 feature_flags.workspace = true
@@ -70,6 +71,7 @@ proptest-derive = { workspace = true, optional = true }
 rand.workspace = true
 regex.workspace = true
 rope.workspace = true
+rpc.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

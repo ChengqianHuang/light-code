@@ -2,20 +2,15 @@ pub mod running;
 
 use crate::{persistence::SerializedLayout, session::running::DebugTerminal};
 use dap::client::SessionId;
-use gpui::{App, Axis, Entity, EventEmitter, FocusHandle, Focusable, Task, WeakEntity};
+use gpui::{App, Axis, Entity, EventEmitter, FocusHandle, Focusable, WeakEntity};
 use project::debugger::session::Session;
 
 use project::{Project, debugger::session::SessionQuirks};
-use rpc::proto;
 use running::RunningState;
 use ui::prelude::*;
-use workspace::{
-    CollaboratorId, FollowableItem, ViewId, Workspace,
-    item::{self, Item},
-};
+use workspace::{Workspace, item::Item};
 
 pub struct DebugSession {
-    remote_id: Option<workspace::ViewId>,
     pub(crate) running_state: Entity<RunningState>,
     pub(crate) quirks: SessionQuirks,
 }
@@ -46,7 +41,6 @@ impl DebugSession {
         let quirks = session.read(cx).quirks();
 
         cx.new(|_| Self {
-            remote_id: None,
             running_state,
             quirks,
         })
@@ -105,6 +99,7 @@ impl Item for DebugSession {
     }
 }
 
+#[cfg(any())]
 impl FollowableItem for DebugSession {
     fn remote_id(&self) -> Option<workspace::ViewId> {
         self.remote_id

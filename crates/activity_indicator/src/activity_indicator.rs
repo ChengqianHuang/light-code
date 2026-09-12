@@ -1,4 +1,3 @@
-use auto_update::DismissMessage;
 use editor::Editor;
 use extension_host::{ExtensionOperation, ExtensionStore};
 use futures::StreamExt;
@@ -12,6 +11,7 @@ use language::{
 use project::{
     LanguageServerProgress, LspStoreEvent, ProgressToken, Project, ProjectEnvironmentEvent,
     git_store::{GitStoreEvent, Repository},
+    lsp_store::{LanguageServerUpdateMessage, LanguageServerUpdateStatus},
 };
 use smallvec::SmallVec;
 use std::{
@@ -32,7 +32,9 @@ actions!(
     activity_indicator,
     [
         /// Displays error messages from language servers in the status bar.
-        ShowErrorMessage
+        ShowErrorMessage,
+        /// Dismisses the current activity message.
+        DismissMessage
     ]
 );
 
@@ -126,65 +128,24 @@ impl ActivityIndicator {
                 &project.read(cx).lsp_store(),
                 |activity_indicator, _, event, cx| {
                     if let LspStoreEvent::LanguageServerUpdate { name, message, .. } = event {
-                        if let proto::update_language_server::Variant::StatusUpdate(status_update) =
-                            message
+                        if let LanguageServerUpdateMessage::StatusUpdate {
+                            message,
+                            status: Some(status),
+                        } = message
                         {
                             let Some(name) = name.clone() else {
                                 return;
                             };
-                            let status = match &status_update.status {
-                                Some(proto::status_update::Status::Binary(binary_status)) => {
-                                    if let Some(binary_status) =
-                                        proto::ServerBinaryStatus::try_from(*binary_status).ok()
-                                    {
-                                        let binary_status = match binary_status {
-                                            proto::ServerBinaryStatus::None => BinaryStatus::None,
-                                            proto::ServerBinaryStatus::CheckingForUpdate => {
-                                                BinaryStatus::CheckingForUpdate
-                                            }
-                                            proto::ServerBinaryStatus::Downloading => {
-                                                BinaryStatus::Downloading
-                                            }
-                                            proto::ServerBinaryStatus::Starting => {
-                                                BinaryStatus::Starting
-                                            }
-                                            proto::ServerBinaryStatus::Stopping => {
-                                                BinaryStatus::Stopping
-                                            }
-                                            proto::ServerBinaryStatus::Stopped => {
-                                                BinaryStatus::Stopped
-                                            }
-                                            proto::ServerBinaryStatus::Failed => {
-                                                let Some(error) = status_update.message.clone()
-                                                else {
-                                                    return;
-                                                };
-                                                BinaryStatus::Failed { error }
-                                            }
-                                        };
-                                        LanguageServerStatusUpdate::Binary(binary_status)
-                                    } else {
-                                        return;
-                                    }
+                            let status = match status {
+                                LanguageServerUpdateStatus::Binary(binary) => {
+                                    LanguageServerStatusUpdate::Binary(binary.clone())
                                 }
-                                Some(proto::status_update::Status::Health(health_status)) => {
-                                    if let Some(health) =
-                                        proto::ServerHealth::try_from(*health_status).ok()
-                                    {
-                                        let health = match health {
-                                            proto::ServerHealth::Ok => ServerHealth::Ok,
-                                            proto::ServerHealth::Warning => ServerHealth::Warning,
-                                            proto::ServerHealth::Error => ServerHealth::Error,
-                                        };
-                                        LanguageServerStatusUpdate::Health(
-                                            health,
-                                            status_update.message.clone().map(SharedString::from),
-                                        )
-                                    } else {
-                                        return;
-                                    }
+                                LanguageServerUpdateStatus::Health(health) => {
+                                    LanguageServerStatusUpdate::Health(
+                                        health.clone(),
+                                        message.clone().map(SharedString::from),
+                                    )
                                 }
-                                None => return,
                             };
 
                             activity_indicator.statuses.retain(|s| s.name != name);
@@ -686,7 +647,7 @@ impl ActivityIndicator {
                 icon,
                 message,
                 on_click: Some(Arc::new(|this, window, cx| {
-                    this.dismiss_message(&Default::default(), window, cx)
+                    this.dismiss_message(&DismissMessage, window, cx)
                 })),
                 tooltip_message: None,
             });

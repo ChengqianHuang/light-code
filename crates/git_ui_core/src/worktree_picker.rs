@@ -1557,6 +1557,7 @@ fn create_new_list_item(
         .into_any_element()
 }
 
+#[cfg(any())]
 pub async fn open_remote_worktree(
     connection_options: remote::RemoteConnectionOptions,
     paths: Vec<PathBuf>,

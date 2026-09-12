@@ -17,10 +17,8 @@ use crate::{branch_picker, picker_prompt, render_remote_button};
 use crate::{
     git_panel_settings::GitPanelSettings, git_status_icon, repository_selector::RepositorySelector,
 };
-use agent_settings::{AgentSettings, UserAgentsMd};
 use anyhow::Context as _;
 use askpass::AskPassDelegate;
-use client::zed_urls;
 use collections::{BTreeMap, HashMap, HashSet};
 use db::kvp::KeyValueStore;
 use editor::{Editor, EditorElement, EditorMode, MultiBuffer, MultiBufferOffset, SizingBehavior};
@@ -55,13 +53,8 @@ use gpui::{
 };
 use itertools::Itertools;
 use language::{Buffer, BufferEvent, File};
-use language_model::{
-    CompletionIntent, ConfiguredModel, Event as LanguageModelEvent, LanguageModelRegistry,
-    LanguageModelRequest, LanguageModelRequestMessage, Role,
-};
 use menu;
 use multi_buffer::ExcerptBoundaryInfo;
-use notifications::status_toast::StatusToast;
 use project::git_store::GitAccess;
 use project::{
     Fs, Project, ProjectPath,
@@ -70,7 +63,6 @@ use project::{
     },
     project_settings::{GitPathStyle, ProjectSettings},
 };
-use prompt_store::RULES_FILE_NAMES;
 
 use serde::{Deserialize, Serialize};
 use settings::{
@@ -1214,7 +1206,6 @@ pub(crate) fn commit_message_editor(
         window,
         cx,
     );
-    commit_editor.set_collaboration_hub(Box::new(project));
     commit_editor.set_use_autoclose(false);
     commit_editor.set_show_gutter(false, cx);
     commit_editor.set_use_modal_editing(true);
@@ -1350,28 +1341,9 @@ impl GitPanel {
 
             let scroll_handle = UniformListScrollHandle::new();
 
-            let mut was_ai_enabled = AgentSettings::get_global(cx).enabled(cx);
-            let _settings_subscription = cx.observe_global::<SettingsStore>(move |_, cx| {
-                let is_ai_enabled = AgentSettings::get_global(cx).enabled(cx);
-                if was_ai_enabled != is_ai_enabled {
-                    was_ai_enabled = is_ai_enabled;
-                    cx.notify();
-                }
+            let _settings_subscription = cx.observe_global::<SettingsStore>(|_, cx| {
+                cx.notify();
             });
-
-            let registry = LanguageModelRegistry::global(cx);
-            cx.subscribe(&registry, |_, _, event, cx| match event {
-                LanguageModelEvent::CommitMessageModelChanged
-                | LanguageModelEvent::DefaultModelChanged
-                | LanguageModelEvent::ProviderStateChanged(_)
-                | LanguageModelEvent::AddedProvider(_)
-                | LanguageModelEvent::RemovedProvider(_)
-                | LanguageModelEvent::ProvidersChanged => {
-                    cx.notify();
-                }
-                _ => {}
-            })
-            .detach();
 
             cx.subscribe_in(
                 &git_store,
@@ -3941,6 +3913,7 @@ impl GitPanel {
         compressed
     }
 
+    #[cfg(any())]
     async fn load_project_rules(
         project: &Entity<Project>,
         repo_work_dir: &Arc<Path>,
@@ -4031,6 +4004,7 @@ impl GitPanel {
     }
 
     /// Generates a commit message using an LLM.
+    #[cfg(any())]
     pub fn generate_commit_message(&mut self, cx: &mut Context<Self>) {
         if !self.can_commit() || !AgentSettings::get_global(cx).enabled(cx) {
             return;
@@ -4206,6 +4180,8 @@ impl GitPanel {
             .await
         }));
     }
+
+    pub fn generate_commit_message(&mut self, _cx: &mut Context<Self>) {}
 
     fn get_fetch_options(
         &self,
@@ -4769,12 +4745,11 @@ impl GitPanel {
         }
     }
 
-    #[cfg(not(feature = "call"))]
     fn potential_co_authors(&self, _cx: &App) -> Vec<(String, String)> {
         Vec::new()
     }
 
-    #[cfg(feature = "call")]
+    #[cfg(any())]
     fn potential_co_authors(&self, cx: &App) -> Vec<(String, String)> {
         let mut new_co_authors = Vec::new();
         let project = self.project.read(cx);
@@ -4816,7 +4791,7 @@ impl GitPanel {
         new_co_authors
     }
 
-    #[cfg(feature = "call")]
+    #[cfg(any())]
     fn local_committer(&self, room: &call::Room, cx: &App) -> Option<(String, String)> {
         let user = room.local_participant_user(cx)?;
         let committer = self.local_committer.as_ref()?;
@@ -5878,6 +5853,7 @@ impl GitPanel {
             .detach_and_log_err(cx);
     }
 
+    #[cfg(any())]
     fn show_commit_message_error<E>(weak_this: &WeakEntity<Self>, err: &E, cx: &mut AsyncApp)
     where
         E: std::fmt::Debug + std::fmt::Display,
@@ -5889,10 +5865,11 @@ impl GitPanel {
         }
     }
 
+    #[cfg(any())]
     fn show_remote_output(
         &mut self,
         action: RemoteAction,
-        info: RemoteCommandOutput,
+        _info: RemoteCommandOutput,
         cx: &mut Context<Self>,
     ) {
         let Some(workspace) = self.workspace.upgrade() else {
@@ -5944,6 +5921,26 @@ impl GitPanel {
                 .dismiss_button(true)
             });
             workspace.toggle_status_toast(status_toast, cx)
+        });
+    }
+
+    fn show_remote_output(
+        &mut self,
+        _action: RemoteAction,
+        info: RemoteCommandOutput,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        workspace.update(cx, |workspace, cx| {
+            workspace.show_toast(
+                workspace::Toast::new(
+                    NotificationId::Named("git-remote-output".into()),
+                    "Git remote operation finished",
+                ),
+                cx,
+            );
         });
     }
 
@@ -6040,6 +6037,7 @@ impl GitPanel {
             .anchor(Anchor::TopRight)
     }
 
+    #[cfg(any())]
     pub(crate) fn render_generate_commit_message_button(
         &self,
         cx: &Context<Self>,
@@ -6112,6 +6110,13 @@ impl GitPanel {
         };
 
         Some(button.into_any_element())
+    }
+
+    pub(crate) fn render_generate_commit_message_button(
+        &self,
+        _cx: &Context<Self>,
+    ) -> Option<AnyElement> {
+        None
     }
 
     pub(crate) fn render_co_authors(&self, cx: &Context<Self>) -> Option<AnyElement> {
@@ -8852,8 +8857,10 @@ impl GitPanel {
     }
 }
 
+#[cfg(any())]
 struct GenerateCommitMessageConfigurationTooltip;
 
+#[cfg(any())]
 impl Render for GenerateCommitMessageConfigurationTooltip {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         ui::tooltip_container(cx, |container, _cx| {
@@ -8931,7 +8938,7 @@ impl Render for GitPanel {
         let has_entries = !self.entries.is_empty();
         let has_write_access = self.has_write_access(cx);
 
-        #[cfg(feature = "call")]
+        #[cfg(any())]
         let has_co_authors = self
             .workspace
             .upgrade()
@@ -8945,7 +8952,6 @@ impl Render for GitPanel {
                     .values()
                     .any(|remote_participant| remote_participant.can_write())
             });
-        #[cfg(not(feature = "call"))]
         let has_co_authors = false;
 
         v_flex()

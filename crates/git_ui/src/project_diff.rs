@@ -9,7 +9,7 @@ use anyhow::{Context as _, Result};
 use buffer_diff::DiffHunkSecondaryStatus;
 use editor::{
     DefaultDiffHunkRenderer, Editor, EditorEvent, SplittableEditor,
-    actions::{GoToHunk, GoToPreviousHunk, SendReviewToAgent},
+    actions::{GoToHunk, GoToPreviousHunk},
 };
 use git::{Commit, StageAll, StageAndNext, ToggleStaged, UnstageAll, UnstageAndNext};
 use gpui::{
@@ -53,7 +53,6 @@ actions!(
         /// Adds files to the git staging area.
         Add,
         /// Opens a new agent thread with the branch diff for review.
-        ReviewDiff,
         LeaderAndFollower,
         /// Compare with a specific branch
         CompareWithBranch,
@@ -952,18 +951,10 @@ impl Render for ProjectDiffToolbar {
                         this.dispatch_action(&Commit, window, cx);
                     })),
             )
-            .when(review_count > 0, |el| {
-                el.child(Divider::vertical()).child(
-                    render_send_review_to_agent_button(review_count, &focus_handle).on_click(
-                        cx.listener(|this, _, window, cx| {
-                            this.dispatch_action(&SendReviewToAgent, window, cx)
-                        }),
-                    ),
-                )
-            })
     }
 }
 
+#[cfg(any())]
 pub(crate) fn render_send_review_to_agent_button(
     review_count: usize,
     focus_handle: &FocusHandle,

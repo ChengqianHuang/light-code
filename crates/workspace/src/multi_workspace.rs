@@ -8,9 +8,7 @@ use gpui::{
 };
 pub use project::ProjectGroupKey;
 use project::{DisableAiSettings, Project};
-use remote::RemoteConnectionOptions;
 use settings::Settings;
-pub use settings::SidebarSide;
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -19,13 +17,17 @@ use util::ResultExt;
 use util::path_list::PathList;
 use zed_actions::agents_sidebar::ToggleThreadSwitcher;
 
-use agent_settings::AgentSettings;
-use settings::SidebarDockPosition;
 use ui::{ContextMenu, right_click_menu};
 
 const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
 
-use crate::open_remote_project_with_existing_connection;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SidebarSide {
+    #[default]
+    Left,
+    Right,
+}
+
 use crate::{
     CloseIntent, CloseWindow, DockPosition, Event as WorkspaceEvent, Item, ModalView, OpenMode,
     Panel, Workspace, WorkspaceId, client_side_decorations,
@@ -70,14 +72,12 @@ pub fn sidebar_side_context_menu(
     id: impl Into<ElementId>,
     cx: &App,
 ) -> ui::RightClickMenu<ContextMenu> {
-    let current_position = AgentSettings::get_global(cx).sidebar_side;
+    let current_position = SidebarSide::Left;
     right_click_menu(id).menu(move |window, cx| {
         let fs = <dyn fs::Fs>::global(cx);
         ContextMenu::build(window, cx, move |mut menu, _, _cx| {
-            let positions: [(SidebarDockPosition, &str); 2] = [
-                (SidebarDockPosition::Left, "Left"),
-                (SidebarDockPosition::Right, "Right"),
-            ];
+            let positions: [(SidebarSide, &str); 2] =
+                [(SidebarSide::Left, "Left"), (SidebarSide::Right, "Right")];
             for (position, label) in positions {
                 let fs = fs.clone();
                 menu = menu.toggleable_entry(
@@ -87,16 +87,11 @@ pub fn sidebar_side_context_menu(
                     None,
                     move |_window, cx| {
                         let side = match position {
-                            SidebarDockPosition::Left => "left",
-                            SidebarDockPosition::Right => "right",
+                            SidebarSide::Left => "left",
+                            SidebarSide::Right => "right",
                         };
                         telemetry::event!("Sidebar Side Changed", side = side);
-                        settings::update_settings_file(fs.clone(), cx, move |settings, _cx| {
-                            settings
-                                .agent
-                                .get_or_insert_default()
-                                .set_sidebar_side(position);
-                        });
+                        let _ = &fs;
                     },
                 );
             }
@@ -348,9 +343,7 @@ impl MultiWorkspace {
             }
         });
         let settings_subscription = cx.observe_global_in::<settings::SettingsStore>(window, {
-            let mut previous_multi_workspace_enabled = !DisableAiSettings::get_global(cx)
-                .disable_ai
-                && AgentSettings::get_global(cx).enabled;
+            let mut previous_multi_workspace_enabled = false;
             move |this, window, cx| {
                 let multi_workspace_enabled = this.multi_workspace_enabled(cx);
                 if previous_multi_workspace_enabled && !multi_workspace_enabled {
@@ -424,7 +417,7 @@ impl MultiWorkspace {
     }
 
     pub fn multi_workspace_enabled(&self, cx: &App) -> bool {
-        !DisableAiSettings::get_global(cx).disable_ai && AgentSettings::get_global(cx).enabled
+        false
     }
 
     pub fn toggle_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -589,13 +582,7 @@ impl MultiWorkspace {
             move |this, _project, event, _window, cx| match event {
                 project::Event::WorktreePathsChanged { old_worktree_paths } => {
                     if let Some(workspace) = workspace.upgrade() {
-                        let host = workspace
-                            .read(cx)
-                            .project()
-                            .read(cx)
-                            .remote_connection_options(cx);
-                        let old_key =
-                            ProjectGroupKey::from_worktree_paths(old_worktree_paths, host);
+                        let old_key = ProjectGroupKey::from_worktree_paths(old_worktree_paths);
                         this.handle_project_group_key_change(&workspace, &old_key, cx);
                     }
                 }
@@ -1057,6 +1044,7 @@ impl MultiWorkspace {
     }
 
     /// Finds an existing workspace whose root paths and host exactly match.
+    #[cfg(any())]
     pub fn workspace_for_paths(
         &self,
         path_list: &PathList,
@@ -1076,6 +1064,13 @@ impl MultiWorkspace {
         None
     }
 
+    pub fn workspace_for_paths(&self, path_list: &PathList, cx: &App) -> Option<Entity<Workspace>> {
+        self.workspaces().into_iter().find_map(|workspace| {
+            (PathList::new(&workspace.read(cx).root_paths(cx)) == *path_list)
+                .then(|| workspace.clone())
+        })
+    }
+
     /// Finds an existing workspace whose paths match, or creates a new one.
     ///
     /// For local projects (`host` is `None`), this delegates to
@@ -1089,6 +1084,7 @@ impl MultiWorkspace {
     /// options and should return a [`Task`] that resolves to the
     /// [`RemoteClient`] session, or `None` if the connection was
     /// cancelled.
+    #[cfg(any())]
     pub fn find_or_create_workspace(
         &mut self,
         paths: PathList,
@@ -1209,7 +1205,7 @@ impl MultiWorkspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Workspace>>> {
-        if let Some(workspace) = self.workspace_for_paths(&path_list, None, cx) {
+        if let Some(workspace) = self.workspace_for_paths(&path_list, cx) {
             self.activate(workspace.clone(), source_workspace, window, cx);
             return Task::ready(Ok(workspace));
         }
@@ -1247,7 +1243,7 @@ impl MultiWorkspace {
                 && let Some(workspace) = requesting_window
                     .update(cx, |multi_workspace, window, cx| {
                         multi_workspace
-                            .workspace_for_paths(&effective_path_list, None, cx)
+                            .workspace_for_paths(&effective_path_list, cx)
                             .inspect(|workspace| {
                                 multi_workspace.activate(
                                     workspace.clone(),
@@ -1842,7 +1838,6 @@ impl MultiWorkspace {
                         .find(|workspace| workspace.read(cx).project_group_key(cx) == group_key);
                     if intent == RemovalIntent::KeepProject
                         && same_group.is_none()
-                        && group_key.host().is_none()
                         && !group_key.path_list().is_empty()
                     {
                         reopen_key = Some(group_key.clone());
@@ -1856,15 +1851,14 @@ impl MultiWorkspace {
                         })
                         .unwrap_or_else(|| {
                             if reopen_key.is_none() {
-                                reopen_key = adjacent_key.clone().filter(|key| {
-                                    key.host().is_none() && !key.path_list().is_empty()
-                                });
+                                reopen_key = adjacent_key
+                                    .clone()
+                                    .filter(|key| !key.path_list().is_empty());
                             }
                             let app_state = displayed_workspace.read(cx).app_state().clone();
                             let project = Project::local(
-                                app_state.client.clone(),
+                                app_state.http_client.clone(),
                                 app_state.node_runtime.clone(),
-                                app_state.user_store.clone(),
                                 app_state.languages.clone(),
                                 app_state.fs.clone(),
                                 None,

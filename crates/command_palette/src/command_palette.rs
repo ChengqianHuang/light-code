@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use client::parse_zed_link;
 use command_palette_hooks::{
     CommandInterceptItem, CommandInterceptResult, CommandPaletteFilter,
     GlobalCommandPaletteInterceptor,
@@ -480,7 +479,7 @@ impl PickerDelegate for CommandPaletteDelegate {
         let (mut tx, mut rx) = postage::dispatch::channel(1);
 
         let query_str = query.as_str();
-        let is_zed_link = parse_zed_link(query_str, cx).is_some();
+        let is_zed_link = false;
 
         let task = cx.background_spawn({
             let mut commands = self.all_commands.clone();
