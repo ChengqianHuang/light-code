@@ -3567,6 +3567,20 @@ impl Pane {
         }
     }
 
+    /// Whether this pane's tab bar is the top row of the window, so the
+    /// macOS traffic lights overlay it and the bar must act as the drag area.
+    fn embeds_traffic_lights(&self, window: &Window, cx: &Context<Pane>) -> bool {
+        !window.is_fullscreen()
+            && self
+                .workspace
+                .upgrade()
+                .is_some_and(|workspace| {
+                    workspace.read(cx).panes.first().is_some_and(|first| {
+                        first.entity_id() == cx.entity_id()
+                    })
+                })
+    }
+
     fn configure_tab_bar_start(
         &mut self,
         tab_bar: TabBar,
@@ -3575,7 +3589,11 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Pane>,
     ) -> TabBar {
+        let embeds_traffic_lights = self.embeds_traffic_lights(window, cx);
         tab_bar
+            .when(embeds_traffic_lights, |tab_bar| {
+                tab_bar.embedded_in_title_bar()
+            })
             .when(
                 self.display_nav_history_buttons.unwrap_or_default(),
                 |tab_bar| {
