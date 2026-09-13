@@ -162,7 +162,6 @@ members = [
     "crates/workspace",
     "crates/worktree",
     "crates/zed",
-    "crates/zeta_prompt",
     "crates/zed_actions",
     "crates/zed_credentials_provider",
     "crates/zed_env_vars",
@@ -362,7 +361,6 @@ which_key = { path = "crates/which_key" }
 workspace = { path = "crates/workspace" }
 worktree = { path = "crates/worktree" }
 zed_actions = { path = "crates/zed_actions" }
-zeta_prompt = { path = "crates/zeta_prompt" }
 zed_credentials_provider = { path = "crates/zed_credentials_provider" }
 zed_env_vars = { path = "crates/zed_env_vars" }
 zlog = { path = "crates/zlog" }
@@ -850,6 +848,9 @@ features = [
 ]
 
 [patch.crates-io]
+livekit = { git = "https://github.com/zed-industries/livekit-rust-sdks", rev = "0a1c519cfce9b365229026b55de9b9dbdb6fed3c" }
+libwebrtc = { git = "https://github.com/zed-industries/livekit-rust-sdks", rev = "0a1c519cfce9b365229026b55de9b9dbdb6fed3c" }
+webrtc-sys = { git = "https://github.com/zed-industries/livekit-rust-sdks", rev = "0a1c519cfce9b365229026b55de9b9dbdb6fed3c" }
 # Unify `tree_sitter_language::LanguageFn` between crates.io grammar crates and
 # the git tree-sitter above; two instances of the crate would make grammar
 # constants type-incompatible with `tree_sitter::Language`.
