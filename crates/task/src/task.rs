@@ -8,7 +8,6 @@ mod task_template;
 mod vscode_debug_format;
 mod vscode_format;
 
-use anyhow::Context as _;
 use collections::{HashMap, HashSet, hash_map};
 use gpui::SharedString;
 use serde::{Deserialize, Serialize};

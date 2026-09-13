@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use collections::FxHashMap;
 use gpui::SharedString;
 use log as _;
