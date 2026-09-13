@@ -266,7 +266,6 @@ impl WelcomePage {
                     .await
                     .log_err()
                     .unwrap_or_default();
-
                 this.update(cx, |this, cx| {
                     this.recent_workspaces = Some(workspaces);
                     cx.notify();
