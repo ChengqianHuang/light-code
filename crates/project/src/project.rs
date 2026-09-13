@@ -1500,6 +1500,17 @@ impl Project {
         ReplicaId::LOCAL
     }
 
+    /// Converts a Windows host path into the corresponding WSL path when this
+    /// project is open via a WSL remote connection. This fork has no remote
+    /// connections, so the path is returned unchanged.
+    pub fn try_windows_path_to_wsl(
+        &self,
+        abs_path: &Path,
+        _cx: &App,
+    ) -> impl Future<Output = Result<PathBuf>> + use<> {
+        std::future::ready(Ok(abs_path.to_owned()))
+    }
+
     #[inline]
     pub fn task_store(&self) -> &Entity<TaskStore> {
         &self.task_store

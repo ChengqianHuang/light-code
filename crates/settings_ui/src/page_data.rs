@@ -1,8 +1,8 @@
 use gpui::{Action as _, App};
 use itertools::Itertools as _;
 use settings::{
-    AudioInputDeviceName, AudioOutputDeviceName, EditPredictionDataCollectionChoice,
-    LanguageSettingsContent, SemanticTokens, SettingsContent,
+    AudioInputDeviceName, AudioOutputDeviceName, LanguageSettingsContent, SemanticTokens,
+    SettingsContent,
 };
 use std::sync::{Arc, OnceLock};
 use strum::{EnumMessage, IntoDiscriminant as _, VariantArray};
@@ -12,11 +12,7 @@ use ui::IntoElement;
 use crate::{
     ActionLink, DynamicItem, PROJECT, SettingField, SettingItem, SettingsFieldMetadata,
     SettingsPage, SettingsPageItem, SubPageLink, USER, active_language, all_language_names,
-    pages::{
-        open_audio_test_window, render_edit_prediction_setup_page, render_external_agents_page,
-        render_llm_providers_page, render_mcp_servers_page, render_sandbox_settings_page,
-        render_skills_setup_page, render_tool_permissions_setup_page,
-    },
+    pages::open_audio_test_window,
 };
 
 const DEFAULT_STRING: String = String::new();
@@ -76,7 +72,6 @@ pub(crate) fn settings_data(cx: &App) -> Vec<SettingsPage> {
         terminal_page(),
         version_control_page(),
         collaboration_page(),
-        ai_page(cx),
         network_page(),
         developer_page(cx),
     ]
@@ -3612,8 +3607,7 @@ fn languages_and_tools_page(cx: &App) -> SettingsPage {
                     render: |this, scroll_handle, window, cx| {
                         let items: Box<[SettingsPageItem]> = concat_sections!(
                             language_settings_data(),
-                            non_editor_language_settings_data(),
-                            edit_prediction_language_settings_section()
+                            non_editor_language_settings_data()
                         );
                         this.render_sub_page_items(
                             items.iter().enumerate(),
@@ -6795,6 +6789,7 @@ fn panels_page() -> SettingsPage {
         ]
     }
 
+    #[cfg(any())]
     fn agent_panel_section() -> [SettingsPageItem; 7] {
         [
             SettingsPageItem::SectionHeader("Agent Panel"),
@@ -6942,7 +6937,6 @@ fn panels_page() -> SettingsPage {
             git_panel_section(),
             debugger_panel_section(),
             collaboration_panel_section(),
-            agent_panel_section(),
         ],
     }
 }
@@ -8560,6 +8554,7 @@ fn collaboration_page() -> SettingsPage {
     }
 }
 
+#[cfg(any())]
 fn ai_page(cx: &App) -> SettingsPage {
     fn general_section() -> [SettingsPageItem; 6] {
         [
@@ -11038,6 +11033,7 @@ fn non_editor_language_settings_data() -> Box<[SettingsPageItem]> {
     )
 }
 
+#[cfg(any())]
 fn edit_prediction_language_settings_section() -> [SettingsPageItem; 5] {
     [
         SettingsPageItem::SectionHeader("Edit Predictions"),
