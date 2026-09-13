@@ -136,7 +136,10 @@ fn load_local_panels(window: &mut Window, cx: &mut Context<Workspace>) -> Task<a
 fn main() {
     // Spawned by the shell environment capture (`zed --printenv`): print the
     // inherited environment and exit instead of booting the whole editor.
-    if std::env::args().any(|argument| argument == "--printenv") {
+    if std::env::args_os()
+        .skip(1)
+        .any(|argument| argument == "--printenv")
+    {
         util::shell_env::print_env();
         return;
     }

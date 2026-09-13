@@ -2922,6 +2922,9 @@ impl Pane {
                 let item_handle = item.boxed_clone();
                 move |pane: &mut Self, event: &ClickEvent, window, cx| {
                     if event.click_count() > 1 {
+                        // Keep tab double-clicks from bubbling to the tab
+                        // bar, where they would zoom the window.
+                        cx.stop_propagation();
                         pane.unpreview_item_if_preview(item_id);
                         let extra_actions = item_handle.tab_extra_context_menu_actions(window, cx);
                         if let Some((_, action)) = extra_actions
@@ -3570,7 +3573,9 @@ impl Pane {
     /// Whether this pane's tab bar is the top row of the window, so the
     /// macOS traffic lights overlay it and the bar must act as the drag area.
     fn embeds_traffic_lights(&self, window: &Window, cx: &Context<Pane>) -> bool {
-        !window.is_fullscreen()
+        PlatformStyle::platform() == PlatformStyle::Mac
+            && !window.is_fullscreen()
+            && !window.is_simple_fullscreen()
             && self
                 .workspace
                 .upgrade()

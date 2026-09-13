@@ -3,7 +3,7 @@ pub use platform_title_bar::{
     ShowNextWindowTab, ShowPreviousWindowTab,
 };
 
-use gpui::{App, Context, Entity, FocusHandle, Focusable, Render, WeakEntity, Window, WindowControlArea};
+use gpui::{App, Context, Entity, FocusHandle, Focusable, Render, WeakEntity, Window, WindowControlArea, px};
 use ui::prelude::*;
 use workspace::Workspace;
 
@@ -34,7 +34,6 @@ impl Render for TitleBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // With a project open, the first pane's tab bar takes over the top of
         // the window (native Zed style); a separate strip would waste a row.
-        // Only empty workspaces keep a slim drag strip.
         let has_worktree = self
             .workspace
             .upgrade()
@@ -51,24 +50,14 @@ impl Render for TitleBar {
             return div().into_any_element();
         }
 
-        let project_name = "Light Code".to_string();
-
+        // Empty workspace: no visible title, just an invisible strip that
+        // serves as the window drag area behind the traffic lights so the
+        // welcome window can still be moved.
         div()
             .id("welcome_title_bar")
-            .h_full()
+            .h(px(32.))
             .w_full()
-            .flex()
-            .items_center()
-            // The platform title bar container is not mounted in this fork, so
-            // this item is what actually paints the strip behind the traffic
-            // lights; without a background the window clear color shows
-            // through as black.
-            .bg(cx.theme().colors().title_bar_background)
             .window_control_area(WindowControlArea::Drag)
-            // Leave room for the macOS traffic lights on the left.
-            .pl_20()
-            .pr_3()
-            .child(Label::new(project_name))
             .into_any_element()
     }
 }
