@@ -166,7 +166,11 @@ impl Search {
                         let sort_key = (file.worktree_id(cx).to_proto(), file.path().clone());
                         entryless_file_buffers.push((sort_key, handle));
                     }
-                    (SearchKind::OpenBuffersOnly, _) | (SearchKind::Local { .. }, None) => {}
+                    (SearchKind::Local { .. }, None) => {
+                        self.limit = self.limit.saturating_sub(1);
+                        unnamed_buffers.push(handle);
+                    }
+                    (SearchKind::OpenBuffersOnly, _) => {}
                 }
             };
         }
