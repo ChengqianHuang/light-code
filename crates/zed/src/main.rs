@@ -64,20 +64,12 @@ struct WorkspaceButtons;
 
 impl Render for WorkspaceButtons {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        // Matches the deleted agent sidebar's bottom bar button: FolderAdd,
+        // "Add Project", opening the recent projects popover.
         h_flex()
             .gap_1()
             .child(
-                IconButton::new("status-bar-manage-projects", IconName::FolderOpen)
-                    .icon_size(IconSize::Small)
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(zed_actions::git::Worktree), cx);
-                    })
-                    .tooltip(|window, cx| {
-                        Tooltip::for_action("Manage projects", &zed_actions::git::Worktree, cx)
-                    }),
-            )
-            .child(
-                IconButton::new("status-bar-recent-projects", IconName::Clock)
+                IconButton::new("status-bar-add-project", IconName::FolderAdd)
                     .icon_size(IconSize::Small)
                     .on_click(|_, window, cx| {
                         window.dispatch_action(
@@ -87,10 +79,20 @@ impl Render for WorkspaceButtons {
                     })
                     .tooltip(|window, cx| {
                         Tooltip::for_action(
-                            "Recent projects",
+                            "Add Project",
                             &zed_actions::OpenRecent::default(),
                             cx,
                         )
+                    }),
+            )
+            .child(
+                IconButton::new("status-bar-manage-projects", IconName::FolderOpen)
+                    .icon_size(IconSize::Small)
+                    .on_click(|_, window, cx| {
+                        window.dispatch_action(Box::new(zed_actions::git::Worktree), cx);
+                    })
+                    .tooltip(|window, cx| {
+                        Tooltip::for_action("Manage projects", &zed_actions::git::Worktree, cx)
                     }),
             )
     }
