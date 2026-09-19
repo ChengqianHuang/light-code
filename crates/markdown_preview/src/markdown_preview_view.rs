@@ -2195,7 +2195,7 @@ mod tests {
     use crate::markdown_preview_view::ImageSource;
     use crate::markdown_preview_view::Resource;
     use crate::markdown_preview_view::resolve_preview_image;
-    use crate::markdown_preview_view::resolve_project_path_for_preview_image;
+    
     use buffer_diff::BufferDiff;
     use editor::Editor;
     use editor::items::open_resolved_target;
@@ -2204,10 +2204,10 @@ mod tests {
     use gpui::{
         App, AppContext as _, Entity, Focusable as _, Modifiers, TestAppContext, WindowHandle, px,
     };
-    use language::{Buffer, DiskState, Point};
+    use language::Point;
     use project::{Project, ProjectPath};
     use serde_json::json;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Duration;
     use util::path;
