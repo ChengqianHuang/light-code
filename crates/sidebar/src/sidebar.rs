@@ -1,6 +1,6 @@
 use gpui::{
-    AnyView, App, Context, CursorStyle, ElementId, Entity, EventEmitter, FocusHandle, Focusable,
-    IntoElement, ParentElement, Render, Styled, WeakEntity, Window, px,
+    App, Context, CursorStyle, ElementId, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
+    ParentElement, Render, Styled, WeakEntity, Window, px,
 };
 use project::ProjectGroupKey;
 use ui::{
@@ -307,35 +307,13 @@ impl Render for Sidebar {
 }
 
 pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, window, cx| {
-        let Some(window) = window else {
-            return;
-        };
-        let window_handle = window.window_handle();
-        let multi_workspace = workspace.multi_workspace().cloned();
-        // The workspace is linked to its MultiWorkspace right after creation,
-        // so defer until that has happened before registering.
-        cx.defer(move |cx| {
-            let multi_workspace = match multi_workspace.and_then(|mw| mw.upgrade()) {
-                Some(multi_workspace) => multi_workspace,
-                None => {
-                    let root = window_handle
-                        .update(cx, |root: AnyView, _, _| root.downcast::<MultiWorkspace>());
-                    match root {
-                        Ok(Ok(root)) => root,
-                        Err(_) => return,
-                        Ok(Err(_)) => return,
-                    }
-                }
-            };
-            multi_workspace.update(cx, |multi, cx| {
-                if multi.sidebar().is_none() {
-                    let sidebar: Entity<Sidebar> =
-                        cx.new(|cx| Sidebar::new(multi_workspace.downgrade(), cx));
-                    multi.register_sidebar(sidebar, cx);
-                }
-            });
-        });
+    cx.observe_new(|multi_workspace: &mut MultiWorkspace, _, cx| {
+        if multi_workspace.sidebar().is_none() {
+            let multi_workspace_handle = cx.weak_entity();
+            let sidebar: Entity<Sidebar> =
+                cx.new(|cx| Sidebar::new(multi_workspace_handle, cx));
+            multi_workspace.register_sidebar(sidebar, cx);
+        }
     })
     .detach();
 }
