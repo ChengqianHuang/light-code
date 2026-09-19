@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_menus;
+
 use std::{future::Future, path::PathBuf, sync::Arc};
 
 use anyhow::Context as _;
@@ -267,6 +269,8 @@ fn main() {
             session: app_session,
         });
         AppState::set_global(app_state.clone(), cx);
+        let menus = app_menus::app_menus(cx);
+        cx.set_menus(menus);
 
         GitHostingProviderRegistry::set_global(Arc::new(GitHostingProviderRegistry::new()), cx);
         git_hosting_providers::init(cx);

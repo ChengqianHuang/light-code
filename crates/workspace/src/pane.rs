@@ -47,7 +47,8 @@ use std::{
 use theme_settings::ThemeSettings;
 use ui::{
     ContextMenu, ContextMenuEntry, ContextMenuItem, DecoratedIcon, IconButtonShape, IconDecoration,
-    IconDecorationKind, Indicator, PopoverMenu, PopoverMenuHandle, Tab, TabBar, TabPosition,
+    ButtonLike, IconDecorationKind, Indicator, Label, PopoverMenu, PopoverMenuHandle, Tab,
+    TabBar, TabPosition,
     Tooltip, prelude::*, right_click_menu,
 };
 use util::{
@@ -3595,9 +3596,38 @@ impl Pane {
         cx: &mut Context<Pane>,
     ) -> TabBar {
         let embeds_traffic_lights = self.embeds_traffic_lights(window, cx);
+        let project_name = self.workspace.upgrade().and_then(|workspace| {
+            let project = workspace.read(cx).project();
+            project
+                .read(cx)
+                .visible_worktrees(cx)
+                .next()
+                .map(|worktree| worktree.read(cx).root_name_str().to_string())
+        });
         tab_bar
             .when(embeds_traffic_lights, |tab_bar| {
-                tab_bar.embedded_in_title_bar()
+                let tab_bar = tab_bar.embedded_in_title_bar();
+                match project_name {
+                    Some(project_name) => tab_bar.start_child(
+                        ButtonLike::new("project-switcher")
+                            .child(Label::new(project_name))
+                            .on_click(|_, window, cx| {
+                                window
+                                    .dispatch_action(
+                                        Box::new(zed_actions::git::Worktree),
+                                        cx,
+                                    );
+                            })
+                            .tooltip(move |window, cx| {
+                                Tooltip::for_action(
+                                    "Manage projects",
+                                    &zed_actions::git::Worktree,
+                                    cx,
+                                )
+                            }),
+                    ),
+                    None => tab_bar,
+                }
             })
             .when(
                 self.display_nav_history_buttons.unwrap_or_default(),
