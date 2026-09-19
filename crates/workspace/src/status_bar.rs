@@ -251,7 +251,7 @@ impl StatusBar {
             })
             .trigger(move |_is_active, _window, _cx| {
                 IconButton::new(
-                    "toggle-workspace-sidebar",
+                    "toggle-projects-sidebar",
                     if on_right {
                         IconName::ThreadsSidebarRightClosed
                     } else {
@@ -260,13 +260,13 @@ impl StatusBar {
                 )
                 .icon_size(IconSize::Small)
                 .tab_index(0isize)
-                .aria_label("Open threads sidebar")
+                .aria_label("Open projects sidebar")
                 .when(has_notifications, |this| {
                     this.indicator(Indicator::dot().color(Color::Accent))
                         .indicator_border_color(Some(indicator_border))
                 })
                 .tooltip(move |_, cx| {
-                    Tooltip::for_action("Open Threads Sidebar", &ToggleWorkspaceSidebar, cx)
+                    Tooltip::for_action("Open Projects Sidebar", &ToggleWorkspaceSidebar, cx)
                 })
                 .on_click(move |_, window, cx| {
                     if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() {

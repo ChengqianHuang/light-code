@@ -171,7 +171,7 @@ impl WorkspaceSidebar for Sidebar {
     }
 
     fn side(&self, _cx: &App) -> SidebarSide {
-        SidebarSide::Left
+        SidebarSide::Right
     }
 
     fn cycle_project(&mut self, forward: bool, window: &mut Window, cx: &mut Context<Self>) {

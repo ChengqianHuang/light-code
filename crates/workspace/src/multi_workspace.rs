@@ -417,7 +417,7 @@ impl MultiWorkspace {
     }
 
     pub fn multi_workspace_enabled(&self, _cx: &App) -> bool {
-        false
+        true
     }
 
     pub fn toggle_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
