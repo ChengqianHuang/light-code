@@ -14,7 +14,7 @@ use crate::{
     worktree_store::{WorktreeStore, WorktreeStoreEvent},
 };
 use anyhow::{Context as _, Result, anyhow, bail};
-use askpass::{AskPassDelegate, EncryptedPassword, IKnowWhatIAmDoingAndIHaveReadTheDocs};
+use askpass::AskPassDelegate;
 use buffer_diff::{
     BufferDiff, DiffHunk, DiffHunkSecondaryStatus, DiffOperations, PendingHunk, PendingSense,
 };
@@ -27,7 +27,7 @@ use futures::{
         mpsc,
         oneshot::{self, Canceled},
     },
-    future::{self, BoxFuture, Shared},
+    future::{self, Shared},
     stream::{FuturesOrdered, FuturesUnordered},
 };
 use git::{
@@ -39,13 +39,12 @@ use git::{
         CreateWorktreeTarget, DiffStatType, DiffType, FetchOptions, FileHistoryChangedFileSets,
         GitCommitTemplate, GitRepository, GitRepositoryCheckpoint, InitialGraphCommitData,
         LogOrder, LogSource, PushOptions, Remote, RemoteCommandOutput, RepoPath, ResetMode,
-        SearchCommitArgs, UpstreamTrackingStatus, Worktree as GitWorktree, delete_branch_flag,
+        SearchCommitArgs, Worktree as GitWorktree, delete_branch_flag,
         is_binary_content,
     },
-    stash::{GitStash, StashEntry},
+    stash::GitStash,
     status::{
-        self, DiffStat, DiffTreeType, FileStatus, GitSummary, StatusCode, TrackedStatus, TreeDiff,
-        TreeDiffStatus, UnmergedStatus, UnmergedStatusCode,
+        self, DiffStat, DiffTreeType, FileStatus, GitSummary, TreeDiff,
     },
 };
 use gpui::{
@@ -55,16 +54,13 @@ use gpui::{
 use language::{
     Anchor, Buffer, BufferEvent, Capability, Language, LanguageRegistry, decode_text, encode_text,
 };
-use parking_lot::Mutex;
 use paths::{config_dir, home_dir};
 use pending_op::{PendingOp, PendingOpId, PendingOps, PendingOpsSummary};
 use postage::stream::Stream as _;
 use serde::Deserialize;
 use settings::{GitDiffBaseSetting, Settings, SettingsLocation, SettingsStore, WorktreeId};
-use smallvec::SmallVec;
 use smol::future::yield_now;
 use std::{
-    cmp::Ordering,
     collections::{BTreeSet, HashSet, VecDeque, hash_map::Entry},
     future::Future,
     mem,
@@ -1896,8 +1892,8 @@ impl GitStore {
             None => buffer.as_rope().clone(),
         };
         let line_ending = buffer.line_ending();
-        let version = version.unwrap_or(buffer.version());
-        let buffer_id = buffer.remote_id();
+        let _version = version.unwrap_or(buffer.version());
+        let _buffer_id = buffer.remote_id();
 
         let repo = repo.downgrade();
         cx.spawn(async move |_, cx| {
@@ -4469,7 +4465,7 @@ impl Repository {
         buffer_store: Entity<BufferStore>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Buffer>>> {
-        let id = self.id;
+        let _id = self.id;
         if let Some(buffer) = self.commit_message_buffer.clone() {
             return Task::ready(Ok(buffer));
         }
@@ -4528,7 +4524,7 @@ impl Repository {
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
         let commit = commit.to_string();
-        let id = self.id;
+        let _id = self.id;
 
         self.spawn_job_with_tracking(
             paths.clone(),
@@ -4563,9 +4559,9 @@ impl Repository {
         &mut self,
         commit: String,
         reset_mode: ResetMode,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
 
         let receiver = self.send_job("reset", None, move |git_repo, _| async move {
             match git_repo {
@@ -4581,7 +4577,7 @@ impl Repository {
     }
 
     pub fn show(&mut self, commit: String) -> oneshot::Receiver<Result<CommitDetails>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("show", None, move |git_repo, _cx| async move {
             match git_repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -4596,7 +4592,7 @@ impl Repository {
         commit: String,
         ignore_shallow_boundary: bool,
     ) -> oneshot::Receiver<Result<CommitDiff>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("load_commit_diff", None, move |git_repo, cx| async move {
             match git_repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => backend
@@ -4643,7 +4639,7 @@ impl Repository {
         cx: &mut Context<Self>,
     ) {
         let repository_state = self.repository_state.clone();
-        let repository_id = self.id;
+        let _repository_id = self.id;
 
         cx.background_spawn(async move {
             let repo_state = repository_state.await;
@@ -5080,7 +5076,7 @@ impl Repository {
         let Some(git_store) = self.git_store.upgrade() else {
             return Task::ready(Ok(()));
         };
-        let id = self.id;
+        let _id = self.id;
         let save_tasks = self.save_buffers(&entries, cx);
         let paths = entries
             .iter()
@@ -5303,7 +5299,7 @@ impl Repository {
         message: Option<String>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
-        let id = self.id;
+        let _id = self.id;
 
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
@@ -5327,7 +5323,7 @@ impl Repository {
         message: Option<String>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
-        let id = self.id;
+        let _id = self.id;
 
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
@@ -5351,7 +5347,7 @@ impl Repository {
         index: Option<usize>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
                 this.send_job("stash_pop", None, move |git_repo, _cx| async move {
@@ -5374,7 +5370,7 @@ impl Repository {
         index: Option<usize>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
                 this.send_job("stash_apply", None, move |git_repo, _cx| async move {
@@ -5397,10 +5393,10 @@ impl Repository {
         repo_path: &RepoPath,
         is_dir: bool,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let work_dir = self.snapshot.work_directory_abs_path.clone();
         let path_display = repo_path.as_ref().display(PathStyle::Unix);
-        let path = repo_path.as_unix_str().to_owned();
+        let _path = repo_path.as_unix_str().to_owned();
         let file_path_str = if is_dir {
             format!("{}/", path_display)
         } else {
@@ -5430,10 +5426,10 @@ impl Repository {
         repo_path: &RepoPath,
         is_dir: bool,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let repository_dir = self.snapshot.repository_dir_abs_path.clone();
         let path_display = repo_path.as_ref().display(PathStyle::Unix);
-        let path = repo_path.as_unix_str().to_owned();
+        let _path = repo_path.as_unix_str().to_owned();
         let file_path_str = if is_dir {
             format!("{}/", path_display)
         } else {
@@ -5463,7 +5459,7 @@ impl Repository {
         index: Option<usize>,
         cx: &mut Context<Self>,
     ) -> oneshot::Receiver<anyhow::Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let this = cx.weak_entity();
         self.send_job("stash_drop", None, move |git_repo, mut cx| async move {
             match git_repo {
@@ -5477,7 +5473,7 @@ impl Repository {
                     if result.is_ok()
                         && let Ok(stash_entries) = backend.stash_entries().await
                     {
-                        let snapshot = this.update(&mut cx, |this, cx| {
+                        let _snapshot = this.update(&mut cx, |this, cx| {
                             this.snapshot.stash_entries = stash_entries;
                             cx.emit(RepositoryEvent::StashEntriesChanged);
                             this.snapshot.clone()
@@ -5496,7 +5492,7 @@ impl Repository {
     // TODO: remove together with `proto::RunGitHook` once all supported peers commit without
     // sending it (see the deprecation note on the message in git.proto).
     pub fn run_hook(&mut self, hook: RunHook, _cx: &mut App) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "run_hook",
             Some(format!("git hook {}", hook.as_str()).into()),
@@ -5520,7 +5516,7 @@ impl Repository {
         askpass: AskPassDelegate,
         _cx: &mut App,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
 
         self.send_job(
             "commit",
@@ -5551,7 +5547,7 @@ impl Repository {
         let branch_list: Arc<[Branch]> = branches_scan.branches.into();
         let branch = branch_list.iter().find(|branch| branch.is_head).cloned();
         log::info!("head branch after scan is {branch:?}");
-        let snapshot = this.update(cx, |this, cx| {
+        let _snapshot = this.update(cx, |this, cx| {
             let head_changed = branch != this.snapshot.branch;
             let branch_list_changed = *branch_list != *this.snapshot.branch_list;
             let branch_list_error_changed = this.snapshot.branch_list_error != branch_list_error;
@@ -5733,7 +5729,7 @@ impl Repository {
         hunk_staging_operation_count: Option<usize>,
         cx: &mut Context<Self>,
     ) -> oneshot::Receiver<anyhow::Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let this = cx.weak_entity();
         let git_store = self.git_store.clone();
         let abs_path = self.snapshot.repo_path_to_abs_path(&path);
@@ -5803,7 +5799,7 @@ impl Repository {
         remote_name: String,
         remote_url: String,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "create_remote",
             Some(format!("git remote add {remote_name} {remote_url}").into()),
@@ -5818,7 +5814,7 @@ impl Repository {
     }
 
     pub fn remove_remote(&mut self, remote_name: String) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "remove_remote",
             Some(format!("git remove remote {remote_name}").into()),
@@ -5837,7 +5833,7 @@ impl Repository {
         branch_name: Option<String>,
         is_push: bool,
     ) -> oneshot::Receiver<Result<Vec<Remote>>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("get_remotes", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -5861,7 +5857,7 @@ impl Repository {
     }
 
     pub fn remote_urls(&mut self) -> oneshot::Receiver<Result<HashMap<String, String>>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("remote_urls", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -5872,7 +5868,7 @@ impl Repository {
     }
 
     pub fn branches(&mut self) -> oneshot::Receiver<Result<BranchesScanResult>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("branches", None, move |repo, _| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -5919,7 +5915,7 @@ impl Repository {
     }
 
     pub fn worktrees(&mut self) -> oneshot::Receiver<Result<Vec<GitWorktree>>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("worktrees", None, move |repo, _| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -5934,7 +5930,7 @@ impl Repository {
         target: CreateWorktreeTarget,
         path: PathBuf,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let job_description = match target.branch_name() {
             Some(branch_name) => format!("git worktree add: {branch_name}"),
             None => "git worktree add (detached)".to_string(),
@@ -5960,7 +5956,7 @@ impl Repository {
         &mut self,
         worktree_path: PathBuf,
     ) -> oneshot::Receiver<Result<Option<SystemTime>>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("worktree_created_at", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6010,7 +6006,7 @@ impl Repository {
     }
 
     pub fn head_sha(&mut self) -> oneshot::Receiver<Result<Option<String>>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("head_sha", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6025,7 +6021,7 @@ impl Repository {
         ref_name: String,
         commit: Option<String>,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("edit_ref", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => match commit {
@@ -6049,7 +6045,7 @@ impl Repository {
     }
 
     pub fn repair_worktrees(&mut self) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("repair_worktrees", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6060,7 +6056,7 @@ impl Repository {
     }
 
     pub fn create_archive_checkpoint(&mut self) -> oneshot::Receiver<Result<(String, String)>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "create_archive_checkpoint",
             None,
@@ -6079,7 +6075,7 @@ impl Repository {
         staged_sha: String,
         unstaged_sha: String,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "restore_archive_checkpoint",
             None,
@@ -6096,7 +6092,7 @@ impl Repository {
     }
 
     pub fn remove_worktree(&mut self, path: PathBuf, force: bool) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let repository_anchor_path: Arc<Path> = self.linked_worktree_anchor_path().into();
         self.send_job(
             "remove_worktree",
@@ -6170,7 +6166,7 @@ impl Repository {
         old_path: PathBuf,
         new_path: PathBuf,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "rename_worktree",
             Some(format!("git worktree move: {}", old_path.display()).into()),
@@ -6188,7 +6184,7 @@ impl Repository {
         &mut self,
         include_remote_name: bool,
     ) -> oneshot::Receiver<Result<Option<SharedString>>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("default_branch", None, move |repo, _| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6203,7 +6199,7 @@ impl Repository {
         diff_type: DiffTreeType,
         _cx: &App,
     ) -> oneshot::Receiver<Result<TreeDiff>> {
-        let repository_id = self.snapshot.id;
+        let _repository_id = self.snapshot.id;
         self.send_job("diff_tree", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6214,7 +6210,7 @@ impl Repository {
     }
 
     pub fn diff(&mut self, diff_type: DiffType, _cx: &App) -> oneshot::Receiver<Result<String>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("diff", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6229,7 +6225,7 @@ impl Repository {
         branch_name: String,
         base_branch: Option<String>,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let status_msg = if let Some(ref base) = base_branch {
             format!("git switch -c {branch_name} {base}").into()
         } else {
@@ -6249,7 +6245,7 @@ impl Repository {
     }
 
     pub fn change_branch(&mut self, branch_name: String) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "change_branch",
             Some(format!("git switch {branch_name}").into()),
@@ -6269,7 +6265,7 @@ impl Repository {
         branch_name: String,
         force: bool,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         let flag = delete_branch_flag(is_remote, force);
         self.send_job(
             "delete_branch",
@@ -6292,7 +6288,7 @@ impl Repository {
         branch: String,
         new_name: String,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "rename_branch",
             Some(format!("git branch -m {branch} {new_name}").into()),
@@ -6307,7 +6303,7 @@ impl Repository {
     }
 
     pub fn check_for_pushed_commits(&mut self) -> oneshot::Receiver<Result<Vec<SharedString>>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job(
             "check_for_pushed_commits",
             None,
@@ -6322,7 +6318,7 @@ impl Repository {
     }
 
     pub fn checkpoint(&mut self) -> oneshot::Receiver<Result<GitRepositoryCheckpoint>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("checkpoint", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6336,7 +6332,7 @@ impl Repository {
         &mut self,
         checkpoint: GitRepositoryCheckpoint,
     ) -> oneshot::Receiver<Result<()>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("restore_checkpoint", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6351,7 +6347,7 @@ impl Repository {
         left: GitRepositoryCheckpoint,
         right: GitRepositoryCheckpoint,
     ) -> oneshot::Receiver<Result<bool>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("compare_checkpoints", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6366,7 +6362,7 @@ impl Repository {
         base_checkpoint: GitRepositoryCheckpoint,
         target_checkpoint: GitRepositoryCheckpoint,
     ) -> oneshot::Receiver<Result<String>> {
-        let id = self.id;
+        let _id = self.id;
         self.send_job("diff_checkpoints", None, move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -6484,7 +6480,7 @@ impl Repository {
 
     fn load_staged_text(
         &mut self,
-        buffer_id: BufferId,
+        _buffer_id: BufferId,
         repo_path: RepoPath,
         cx: &App,
     ) -> Task<Result<Option<String>>> {
@@ -6502,7 +6498,7 @@ impl Repository {
 
     fn load_committed_text(
         &mut self,
-        buffer_id: BufferId,
+        _buffer_id: BufferId,
         repo_path: RepoPath,
         cx: &App,
     ) -> Task<Result<DiffBasesChange>> {
@@ -6543,7 +6539,7 @@ impl Repository {
     pub fn load_commit_template_text(
         &mut self,
     ) -> oneshot::Receiver<Result<Option<GitCommitTemplate>>> {
-        let repository_id = self.snapshot.id;
+        let _repository_id = self.snapshot.id;
         self.send_job(
             "load_commit_template_text",
             None,
@@ -6563,7 +6559,7 @@ impl Repository {
         revision: Oid,
         cx: &App,
     ) -> Task<Result<(String, git::blame::Blame)>> {
-        let repository_id = self.snapshot.id;
+        let _repository_id = self.snapshot.id;
         let rx = self.send_job("blame_buffer_at_revision", None, {
             let path = path.clone();
             move |state, _| async move {
@@ -6597,7 +6593,7 @@ impl Repository {
     }
 
     fn load_blob_content(&mut self, oid: Oid, cx: &App) -> Task<Result<String>> {
-        let repository_id = self.snapshot.id;
+        let _repository_id = self.snapshot.id;
         let rx = self.send_job("load_blob_content", None, move |state, _| async move {
             match state {
                 RepositoryState::Local(LocalRepositoryState { backend, .. }) => {
@@ -7190,8 +7186,10 @@ impl Repository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use askpass::EncryptedPassword;
     use crate::Project;
     use fs::{FakeFs, Fs};
+    use smallvec::SmallVec;
     use git::repository::{RepoPath, repo_path};
     use gpui::proptest::prelude::*;
     use gpui::{TestAppContext, UpdateGlobal};
@@ -7229,147 +7227,14 @@ mod tests {
     }
 
     #[gpui::test]
-    #[cfg(any())]
-    async fn ending_remote_operation_cancels_active_askpass(cx: &mut TestAppContext) {
-        let delegates = RemoteAskPassDelegates::default();
-        let (delegate, mut prompts) = test_askpass_delegate(cx);
-        let operation = RemoteAskPassOperation::new(1, delegate, delegates.clone());
-        let password_request = cx.executor().spawn({
-            let delegates = delegates.clone();
-            async move { request_remote_password(&delegates, 1, "Password:".to_string()).await }
-        });
-        let (_, response_sender, cancellation) = prompts
-            .next()
-            .await
-            .expect("password prompt should be received");
-
-        drop(operation);
-
-        assert!(cancellation.await.is_err());
-        let Err(error) = password_request.await else {
-            panic!("password request should be cancelled")
-        };
-        assert!(error.to_string().contains("remote Git operation ended"));
-        assert!(delegates.lock().is_empty());
-        drop(response_sender);
-    }
 
     #[gpui::test]
-    #[cfg(any())]
-    async fn successful_remote_askpass_allows_another_prompt(cx: &mut TestAppContext) {
-        let delegates = RemoteAskPassDelegates::default();
-        let (delegate, mut prompts) = test_askpass_delegate(cx);
-        let operation = RemoteAskPassOperation::new(1, delegate, delegates.clone());
-
-        for expected_prompt in ["Username:", "Password:"] {
-            let password_request =
-                cx.executor().spawn({
-                    let delegates = delegates.clone();
-                    async move {
-                        request_remote_password(&delegates, 1, expected_prompt.to_string()).await
-                    }
-                });
-            let (prompt, response_sender, cancellation) = prompts
-                .next()
-                .await
-                .expect("password prompt should be received");
-            assert_eq!(prompt, expected_prompt);
-            assert!(
-                response_sender
-                    .send(
-                        EncryptedPassword::try_from("secret")
-                            .expect("test password should be encryptable")
-                    )
-                    .is_ok()
-            );
-            assert!(password_request.await.is_ok());
-            assert!(cancellation.await.is_err());
-            assert!(
-                delegates
-                    .lock()
-                    .get(&1)
-                    .expect("operation should remain registered")
-                    .active_request_cancellation
-                    .is_none()
-            );
-        }
-
-        drop(operation);
-    }
 
     #[gpui::test]
-    #[cfg(any())]
-    async fn concurrent_remote_askpass_request_is_rejected(cx: &mut TestAppContext) {
-        let delegates = RemoteAskPassDelegates::default();
-        let (delegate, mut prompts) = test_askpass_delegate(cx);
-        let operation = RemoteAskPassOperation::new(1, delegate, delegates.clone());
-        let first_request = cx.executor().spawn({
-            let delegates = delegates.clone();
-            async move { request_remote_password(&delegates, 1, "First:".to_string()).await }
-        });
-        let (_, response_sender, cancellation) = prompts
-            .next()
-            .await
-            .expect("first password prompt should be received");
-
-        let Err(error) = request_remote_password(&delegates, 1, "Second:".to_string()).await else {
-            panic!("concurrent prompt should be rejected");
-        };
-
-        assert!(error.to_string().contains("already active"));
-        assert!(prompts.next().now_or_never().is_none());
-
-        drop(operation);
-        assert!(cancellation.await.is_err());
-        assert!(first_request.await.is_err());
-        drop(response_sender);
-    }
 
     #[gpui::test]
-    #[cfg(any())]
-    async fn remote_askpass_is_rejected_after_operation_ends(cx: &mut TestAppContext) {
-        let delegates = RemoteAskPassDelegates::default();
-        let (delegate, mut prompts) = test_askpass_delegate(cx);
-        let operation = RemoteAskPassOperation::new(1, delegate, delegates.clone());
-        drop(operation);
-
-        let Err(error) = request_remote_password(&delegates, 1, "Password:".to_string()).await
-        else {
-            panic!("prompt should be rejected after operation ends");
-        };
-
-        assert!(error.to_string().contains("no longer exists"));
-        assert!(prompts.next().now_or_never().is_none());
-    }
 
     #[gpui::test]
-    #[cfg(any())]
-    async fn late_remote_askpass_response_does_not_restore_operation(cx: &mut TestAppContext) {
-        let delegates = RemoteAskPassDelegates::default();
-        let (delegate, mut prompts) = test_askpass_delegate(cx);
-        let operation = RemoteAskPassOperation::new(1, delegate, delegates.clone());
-        let password_request = cx.executor().spawn({
-            let delegates = delegates.clone();
-            async move { request_remote_password(&delegates, 1, "Password:".to_string()).await }
-        });
-        let (_, response_sender, cancellation) = prompts
-            .next()
-            .await
-            .expect("password prompt should be received");
-
-        drop(operation);
-        assert!(cancellation.await.is_err());
-        assert!(
-            response_sender
-                .send(
-                    EncryptedPassword::try_from("secret")
-                        .expect("test password should be encryptable")
-                )
-                .is_err()
-        );
-        assert!(password_request.await.is_err());
-        assert!(delegates.lock().is_empty());
-    }
 
     #[test]
     fn test_is_submodule_git_dir() {

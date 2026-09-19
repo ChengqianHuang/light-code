@@ -412,18 +412,6 @@ fn test_rpc_request_tracker_bounds_unanswered_requests() {
 }
 
 #[test]
-#[cfg(any())]
-fn test_rpc_log_duration_proto_roundtrip() {
-    let log_type = LanguageServerLogType::Rpc {
-        received: true,
-        elapsed: Some(Duration::from_micros(1234)),
-    };
-
-    assert_eq!(
-        LanguageServerLogType::from_proto(log_type.to_proto()),
-        log_type
-    );
-}
 
 #[test]
 fn test_glob_literal_prefix() {

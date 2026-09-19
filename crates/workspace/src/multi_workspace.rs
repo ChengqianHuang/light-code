@@ -7,7 +7,7 @@ use gpui::{
     WindowId, actions, deferred, px,
 };
 pub use project::ProjectGroupKey;
-use project::{DisableAiSettings, Project};
+use project::Project;
 use settings::Settings;
 use std::cell::Cell;
 use std::path::PathBuf;
@@ -70,7 +70,7 @@ pub struct SidebarRenderState {
 
 pub fn sidebar_side_context_menu(
     id: impl Into<ElementId>,
-    cx: &App,
+    _cx: &App,
 ) -> ui::RightClickMenu<ContextMenu> {
     let current_position = SidebarSide::Left;
     right_click_menu(id).menu(move |window, cx| {
@@ -85,7 +85,7 @@ pub fn sidebar_side_context_menu(
                     position == current_position,
                     IconPosition::Start,
                     None,
-                    move |_window, cx| {
+                    move |_window, _cx| {
                         let side = match position {
                             SidebarSide::Left => "left",
                             SidebarSide::Right => "right",
@@ -416,7 +416,7 @@ impl MultiWorkspace {
             .map_or(false, |s| s.is_threads_list_view_active(cx))
     }
 
-    pub fn multi_workspace_enabled(&self, cx: &App) -> bool {
+    pub fn multi_workspace_enabled(&self, _cx: &App) -> bool {
         false
     }
 
@@ -1041,27 +1041,6 @@ impl MultiWorkspace {
 
             Ok(())
         })
-    }
-
-    /// Finds an existing workspace whose root paths and host exactly match.
-    #[cfg(any())]
-    pub fn workspace_for_paths(
-        &self,
-        path_list: &PathList,
-        host: Option<&RemoteConnectionOptions>,
-        cx: &App,
-    ) -> Option<Entity<Workspace>> {
-        for workspace in self.workspaces() {
-            let root_paths = PathList::new(&workspace.read(cx).root_paths(cx));
-            let key = workspace.read(cx).project_group_key(cx);
-            let host_matches = key.host().as_ref() == host;
-            let paths_match = root_paths == *path_list;
-            if host_matches && paths_match {
-                return Some(workspace.clone());
-            }
-        }
-
-        None
     }
 
     pub fn workspace_for_paths(&self, path_list: &PathList, cx: &App) -> Option<Entity<Workspace>> {

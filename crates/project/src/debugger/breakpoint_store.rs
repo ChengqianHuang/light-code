@@ -1,21 +1,16 @@
 //! Module for managing breakpoints in a project.
 //!
 //! Breakpoints are separate from a session because they're not associated with any particular debug session. They can also be set up without a session running.
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 pub use breakpoints_in_file::{BreakpointSessionState, BreakpointWithPosition};
 use breakpoints_in_file::{BreakpointsInFile, StatefulBreakpoint};
-use collections::{BTreeMap, HashMap};
+use collections::BTreeMap;
 use dap::{StackFrameId, client::SessionId};
 use gpui::{
-    App, AppContext, AsyncApp, Context, Entity, EntityId, EventEmitter, Subscription, Task,
+    App, AppContext, Context, Entity, EntityId, EventEmitter, Subscription, Task,
 };
 use itertools::Itertools;
 use language::{Buffer, BufferSnapshot};
-#[cfg(any())]
-use rpc::{
-    AnyProtoClient, TypedEnvelope,
-    proto::{self},
-};
 use std::{hash::Hash, ops::Range, path::Path, sync::Arc};
 use text::{Bias, Point, PointUtf16, Unclipped};
 use util::maybe;
@@ -130,18 +125,9 @@ mod breakpoints_in_file {
     }
 }
 
-#[cfg(any())]
-#[derive(Clone)]
-struct RemoteBreakpointStore {
-    upstream_client: AnyProtoClient,
-    upstream_project_id: u64,
-}
-
 #[derive(Clone)]
 enum BreakpointStoreMode {
     Local,
-    #[cfg(any())]
-    Remote(RemoteBreakpointStore),
 }
 
 #[derive(Clone, PartialEq)]
@@ -157,8 +143,6 @@ pub struct BreakpointStore {
     buffer_store: Entity<BufferStore>,
     worktree_store: Entity<WorktreeStore>,
     breakpoints: BTreeMap<Arc<Path>, BreakpointsInFile>,
-    #[cfg(any())]
-    downstream_client: Option<(AnyProtoClient, u64)>,
     active_stack_frame: Option<ActiveStackFrame>,
     active_debug_line_pane_id: Option<EntityId>,
     // E.g ssh
@@ -166,11 +150,6 @@ pub struct BreakpointStore {
 }
 
 impl BreakpointStore {
-    #[cfg(any())]
-    pub fn init(client: &AnyProtoClient) {
-        client.add_entity_request_handler(Self::handle_toggle_breakpoint);
-        client.add_entity_message_handler(Self::handle_breakpoints_for_file);
-    }
     pub fn local(worktree_store: Entity<WorktreeStore>, buffer_store: Entity<BufferStore>) -> Self {
         BreakpointStore {
             breakpoints: BTreeMap::new(),
@@ -179,170 +158,6 @@ impl BreakpointStore {
             worktree_store,
             active_stack_frame: Default::default(),
             active_debug_line_pane_id: None,
-        }
-    }
-
-    #[cfg(any())]
-    pub(crate) fn remote(
-        upstream_project_id: u64,
-        upstream_client: AnyProtoClient,
-        buffer_store: Entity<BufferStore>,
-        worktree_store: Entity<WorktreeStore>,
-    ) -> Self {
-        BreakpointStore {
-            breakpoints: BTreeMap::new(),
-            mode: BreakpointStoreMode::Remote(RemoteBreakpointStore {
-                upstream_client,
-                upstream_project_id,
-            }),
-            buffer_store,
-            worktree_store,
-            downstream_client: None,
-            active_stack_frame: Default::default(),
-            active_debug_line_pane_id: None,
-        }
-    }
-
-    #[cfg(any())]
-    pub fn shared(&mut self, project_id: u64, downstream_client: AnyProtoClient) {
-        self.downstream_client = Some((downstream_client, project_id));
-    }
-
-    #[cfg(any())]
-    pub(crate) fn unshared(&mut self, cx: &mut Context<Self>) {
-        self.downstream_client.take();
-
-        cx.notify();
-    }
-
-    #[cfg(any())]
-    async fn handle_breakpoints_for_file(
-        this: Entity<Self>,
-        message: TypedEnvelope<proto::BreakpointsForFile>,
-        mut cx: AsyncApp,
-    ) -> Result<()> {
-        if message.payload.breakpoints.is_empty() {
-            return Ok(());
-        }
-
-        let buffer = this
-            .update(&mut cx, |this, cx| {
-                let path = this
-                    .worktree_store
-                    .read(cx)
-                    .project_path_for_absolute_path(message.payload.path.as_ref(), cx)?;
-                Some(
-                    this.buffer_store
-                        .update(cx, |this, cx| this.open_buffer(path, cx)),
-                )
-            })
-            .context("Invalid project path")?
-            .await?;
-
-        this.update(&mut cx, move |this, cx| {
-            let bps = this
-                .breakpoints
-                .entry(Arc::<Path>::from(message.payload.path.as_ref()))
-                .or_insert_with(|| BreakpointsInFile::new(buffer, cx));
-
-            bps.breakpoints = message
-                .payload
-                .breakpoints
-                .into_iter()
-                .filter_map(|breakpoint| {
-                    let position = language::proto::deserialize_anchor(breakpoint.position?)?;
-                    let session_state = breakpoint
-                        .session_state
-                        .iter()
-                        .map(|(session_id, state)| {
-                            let state = BreakpointSessionState {
-                                id: state.id,
-                                verified: state.verified,
-                            };
-                            (SessionId::from_proto(*session_id), state)
-                        })
-                        .collect();
-                    let breakpoint = Breakpoint::from_proto(breakpoint)?;
-                    let bp = BreakpointWithPosition {
-                        position,
-                        bp: breakpoint,
-                    };
-
-                    Some(StatefulBreakpoint { bp, session_state })
-                })
-                .collect();
-
-            cx.notify();
-        });
-
-        Ok(())
-    }
-
-    #[cfg(any())]
-    async fn handle_toggle_breakpoint(
-        this: Entity<Self>,
-        message: TypedEnvelope<proto::ToggleBreakpoint>,
-        mut cx: AsyncApp,
-    ) -> Result<proto::Ack> {
-        let path = this
-            .update(&mut cx, |this, cx| {
-                this.worktree_store
-                    .read(cx)
-                    .project_path_for_absolute_path(message.payload.path.as_ref(), cx)
-            })
-            .context("Could not resolve provided abs path")?;
-        let buffer = this
-            .update(&mut cx, |this, cx| {
-                this.buffer_store.read(cx).get_by_path(&path)
-            })
-            .context("Could not find buffer for a given path")?;
-        let breakpoint = message
-            .payload
-            .breakpoint
-            .context("Breakpoint not present in RPC payload")?;
-        let position = language::proto::deserialize_anchor(
-            breakpoint
-                .position
-                .context("Anchor not present in RPC payload")?,
-        )
-        .context("Anchor deserialization failed")?;
-        let breakpoint =
-            Breakpoint::from_proto(breakpoint).context("Could not deserialize breakpoint")?;
-
-        this.update(&mut cx, |this, cx| {
-            this.toggle_breakpoint(
-                buffer,
-                BreakpointWithPosition {
-                    position,
-                    bp: breakpoint,
-                },
-                BreakpointEditAction::Toggle,
-                cx,
-            );
-        });
-        Ok(proto::Ack {})
-    }
-
-    #[cfg(any())]
-    pub(crate) fn broadcast(&self) {
-        if let Some((client, project_id)) = &self.downstream_client {
-            for (path, breakpoint_set) in &self.breakpoints {
-                let _ = client.send(proto::BreakpointsForFile {
-                    project_id: *project_id,
-                    path: path.to_string_lossy().into_owned(),
-                    breakpoints: breakpoint_set
-                        .breakpoints
-                        .iter()
-                        .filter_map(|breakpoint| {
-                            breakpoint.bp.bp.to_proto(
-                                path,
-                                breakpoint.position(),
-                                &breakpoint.session_state,
-                            )
-                        })
-                        .collect(),
-                });
-            }
         }
     }
 
@@ -966,53 +781,6 @@ impl Breakpoint {
             condition: None,
             message: Some(log_message.into()),
         }
-    }
-
-    #[cfg(any())]
-    fn to_proto(
-        &self,
-        _path: &Path,
-        position: &text::Anchor,
-        session_states: &HashMap<SessionId, BreakpointSessionState>,
-    ) -> Option<client::proto::Breakpoint> {
-        Some(client::proto::Breakpoint {
-            position: Some(serialize_text_anchor(position)),
-            state: match self.state {
-                BreakpointState::Enabled => proto::BreakpointState::Enabled.into(),
-                BreakpointState::Disabled => proto::BreakpointState::Disabled.into(),
-            },
-            message: self.message.as_ref().map(|s| String::from(s.as_ref())),
-            condition: self.condition.as_ref().map(|s| String::from(s.as_ref())),
-            hit_condition: self
-                .hit_condition
-                .as_ref()
-                .map(|s| String::from(s.as_ref())),
-            session_state: session_states
-                .iter()
-                .map(|(session_id, state)| {
-                    (
-                        session_id.to_proto(),
-                        proto::BreakpointSessionState {
-                            id: state.id,
-                            verified: state.verified,
-                        },
-                    )
-                })
-                .collect(),
-        })
-    }
-
-    #[cfg(any())]
-    fn from_proto(breakpoint: client::proto::Breakpoint) -> Option<Self> {
-        Some(Self {
-            state: match proto::BreakpointState::try_from(breakpoint.state).ok() {
-                Some(proto::BreakpointState::Disabled) => BreakpointState::Disabled,
-                None | Some(proto::BreakpointState::Enabled) => BreakpointState::Enabled,
-            },
-            message: breakpoint.message.map(Into::into),
-            condition: breakpoint.condition.map(Into::into),
-            hit_condition: breakpoint.hit_condition.map(Into::into),
-        })
     }
 
     #[inline]

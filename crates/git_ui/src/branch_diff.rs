@@ -5,7 +5,7 @@ use crate::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use editor::{Addon, Editor, EditorEvent, HiddenDiffHunkRenderer, SplittableEditor};
-use git::{repository::DiffType, status::FileStatus};
+use git::status::FileStatus;
 use gpui::{
     Action, App, AppContext as _, Entity, EventEmitter, FocusHandle, Focusable, Render,
     SharedString, Subscription, Task, WeakEntity,
@@ -380,50 +380,6 @@ impl BranchDiff {
         });
     }
 
-    #[cfg(any())]
-    fn review_diff(&mut self, _: &ReviewDiff, window: &mut Window, cx: &mut Context<Self>) {
-        let DiffBase::Merge { base_ref } = self.diff_base(cx).clone() else {
-            return;
-        };
-        let Some(repo) = self.repo(cx) else {
-            return;
-        };
-
-        let diff_receiver = repo.update(cx, |repo, cx| {
-            repo.diff(
-                DiffType::MergeBase {
-                    base_ref: base_ref.clone(),
-                },
-                cx,
-            )
-        });
-
-        let workspace = self.workspace.clone();
-        window
-            .spawn(cx, {
-                let workspace = workspace.clone();
-                async move |cx| {
-                    let diff_text = diff_receiver.await??;
-
-                    if let Some(workspace) = workspace.upgrade() {
-                        workspace.update_in(cx, |_workspace, window, cx| {
-                            window.dispatch_action(
-                                ReviewBranchDiff {
-                                    diff_text: diff_text.into(),
-                                    base_ref,
-                                }
-                                .boxed_clone(),
-                                cx,
-                            );
-                        })?;
-                    }
-
-                    anyhow::Ok(())
-                }
-            })
-            .detach_and_notify_err(workspace, window, cx);
-    }
-
     #[cfg(any(test, feature = "test-support"))]
     pub fn editor(&self, cx: &App) -> Entity<SplittableEditor> {
         self.diff.read(cx).editor().clone()
@@ -625,7 +581,7 @@ impl Item for BranchDiff {
 }
 
 impl Render for BranchDiff {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         div().size_full().child(self.diff.clone())
     }
 }
@@ -748,8 +704,8 @@ impl Render for BranchDiffToolbar {
         let Some(branch_diff) = self.branch_diff(cx) else {
             return div();
         };
-        let focus_handle = branch_diff.focus_handle(cx);
-        let review_count = branch_diff
+        let _focus_handle = branch_diff.focus_handle(cx);
+        let _review_count = branch_diff
             .read(cx)
             .diff
             .read(cx)

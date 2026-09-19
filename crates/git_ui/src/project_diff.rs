@@ -807,7 +807,7 @@ impl Render for ProjectDiffToolbar {
         };
         let focus_handle = project_diff.focus_handle(cx);
         let button_states = project_diff.read(cx).button_states(cx);
-        let review_count = project_diff.read(cx).total_review_comment_count(cx);
+        let _review_count = project_diff.read(cx).total_review_comment_count(cx);
 
         let (additions, deletions) = project_diff.read(cx).calculate_changed_lines(cx);
         let is_multibuffer_empty = project_diff.read(cx).multibuffer(cx).read(cx).is_empty();
@@ -952,27 +952,6 @@ impl Render for ProjectDiffToolbar {
                     })),
             )
     }
-}
-
-#[cfg(any())]
-pub(crate) fn render_send_review_to_agent_button(
-    review_count: usize,
-    focus_handle: &FocusHandle,
-) -> Button {
-    Button::new(
-        "send-review",
-        format!("Send Review to Agent ({})", review_count),
-    )
-    .start_icon(
-        Icon::new(IconName::ZedAssistant)
-            .size(IconSize::Small)
-            .color(Color::Muted),
-    )
-    .tooltip(Tooltip::for_action_title_in(
-        "Send all review comments to the Agent panel",
-        &SendReviewToAgent,
-        focus_handle,
-    ))
 }
 
 #[cfg(test)]

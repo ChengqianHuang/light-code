@@ -14,8 +14,6 @@
 pub mod actions;
 pub mod blink_manager;
 mod bracket_colorization;
-#[cfg(any())]
-mod clangd_ext;
 pub mod code_context_menus;
 mod code_lens;
 pub mod display_map;
@@ -10708,7 +10706,7 @@ impl Editor {
             .language_settings(cx)
             .show_edit_predictions;
 
-        let project = project.read(cx);
+        let _project = project.read(cx);
         let event_type = reported_event.event_type();
 
         if let ReportEditorEvent::Saved { auto_saved } = reported_event {
@@ -11701,31 +11699,6 @@ pub trait CollaborationHub {
     /// `O(selections)` and pure overhead when nobody is observing.
     fn should_broadcast_selections(&self, _: &App) -> bool {
         true
-    }
-}
-
-#[cfg(any())]
-impl CollaborationHub for Entity<Project> {
-    fn collaborators<'a>(&self, cx: &'a App) -> &'a HashMap<PeerId, Collaborator> {
-        self.read(cx).collaborators()
-    }
-
-    fn should_broadcast_selections(&self, cx: &App) -> bool {
-        // `is_shared()` is true for a host that has shared the project and for a
-        // collab guest, and stays correct even before peer-join notifications
-        // have propagated locally (unlike a live collaborator count). A purely
-        // local project has no audience, so selections need not be broadcast.
-        self.read(cx).is_shared()
-    }
-
-    fn user_participant_indices<'a>(&self, cx: &'a App) -> &'a HashMap<u64, ParticipantIndex> {
-        self.read(cx).user_store().read(cx).participant_indices()
-    }
-
-    fn user_names(&self, cx: &App) -> HashMap<u64, SharedString> {
-        let this = self.read(cx);
-        let user_ids = this.collaborators().values().map(|c| c.user_id);
-        this.user_store().read(cx).participant_names(user_ids, cx)
     }
 }
 

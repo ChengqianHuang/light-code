@@ -787,17 +787,6 @@ fn open_settings_editor_at_target(
     });
 }
 
-#[cfg(any())]
-pub fn open_skill_creator(
-    open_mode: pages::SkillCreatorOpenMode,
-    workspace_handle: Option<WindowHandle<MultiWorkspace>>,
-    cx: &mut App,
-) {
-    open_settings_editor_with(workspace_handle, cx, |settings_window, window, cx| {
-        settings_window.navigate_to_skill_creator(open_mode, window, cx);
-    });
-}
-
 fn open_settings_editor_with(
     workspace_handle: Option<WindowHandle<MultiWorkspace>>,
     cx: &mut App,
@@ -937,42 +926,9 @@ pub struct SettingsWindow {
     pub(crate) regex_validation_error: Option<String>,
     pub(crate) sandbox_host_validation_error: Option<String>,
     last_copied_link_path: Option<&'static str>,
-    /// Cached configuration views per provider, created lazily.
-    #[cfg(any())]
-    pub(crate) provider_configuration_views:
-        HashMap<language_model::LanguageModelProviderId, gpui::AnyView>,
-    /// The provider whose configuration sub-page is currently open, if any.
-    #[cfg(any())]
-    pub(crate) configuring_provider: Option<language_model::LanguageModelProviderId>,
     /// Directory path of the skill whose share link was most recently copied,
     /// used to show a transient "copied" checkmark on its share button.
     pub(crate) last_copied_skill_directory_path: Option<PathBuf>,
-    /// State for the active "add OpenAI/Anthropic-compatible provider" form sub-page, if open.
-    #[cfg(any())]
-    pub(crate) llm_provider_form: Option<LlmProviderForm>,
-    /// Stable focus handle for the LLM "Add Provider" button, so it can show a
-    /// focus ring when the page auto-focuses it on open (which happens via mouse,
-    /// where `focus_visible` styling would otherwise be suppressed).
-    #[cfg(any())]
-    pub(crate) llm_provider_add_focus_handle: FocusHandle,
-    /// State for the active "add/edit custom MCP server" form sub-page, if open.
-    #[cfg(any())]
-    pub(crate) mcp_server_form: Option<McpServerForm>,
-    /// Stable focus handle for the MCP "Add Server" button, so it can show a
-    /// focus ring when the page auto-focuses it on open (which happens via mouse,
-    /// where `focus_visible` styling would otherwise be suppressed).
-    #[cfg(any())]
-    pub(crate) mcp_add_server_focus_handle: FocusHandle,
-    /// State for the active "add/edit custom external agent" form sub-page, if open.
-    #[cfg(any())]
-    pub(crate) custom_agent_form: Option<CustomAgentForm>,
-    /// Stable focus handle for the external agents "Add Agent" button, so it can
-    /// show a focus ring when the page auto-focuses it on open (which happens via
-    /// mouse, where `focus_visible` styling would otherwise be suppressed).
-    #[cfg(any())]
-    pub(crate) external_agent_add_focus_handle: FocusHandle,
-    #[cfg(any())]
-    skill_creator_page: Option<(Entity<pages::SkillCreatorPage>, Subscription)>,
 }
 
 struct SearchDocument {
@@ -1802,37 +1758,6 @@ impl SettingsWindow {
                 last_is_staff = is_staff;
                 this.rebuild_pages(window, cx);
             }
-        })
-        .detach();
-
-        #[cfg(any())]
-        cx.observe_global_in::<SkillIndex>(window, |this, _window, cx| {
-            if let Some(skill_index) = cx.try_global::<SkillIndex>() {
-                this.hidden_deleted_skill_directory_paths
-                    .retain(|directory_path| {
-                        skill_index
-                            .global_skills
-                            .iter()
-                            .chain(
-                                skill_index
-                                    .project_skills
-                                    .iter()
-                                    .flat_map(|group| group.skills.iter()),
-                            )
-                            .any(|skill| skill.directory_path.as_path() == directory_path.as_path())
-                    });
-            } else {
-                this.hidden_deleted_skill_directory_paths.clear();
-            }
-            cx.notify();
-        })
-        .detach();
-
-        #[cfg(any())]
-        let language_model_registry = language_model::LanguageModelRegistry::global(cx);
-        #[cfg(any())]
-        cx.subscribe(&language_model_registry, |_, _, _event, cx| {
-            cx.notify();
         })
         .detach();
 
@@ -4210,105 +4135,6 @@ impl SettingsWindow {
         self.push_sub_page(sub_page_link, section_header.into(), window, cx);
     }
 
-    #[cfg(any())]
-    pub(crate) fn skill_creator_page(&self) -> Option<Entity<pages::SkillCreatorPage>> {
-        self.skill_creator_page
-            .as_ref()
-            .map(|(page, _)| page.clone())
-    }
-
-    /// If the creator is already the active sub-page, the open mode is applied
-    /// to the existing form instead
-    #[cfg(any())]
-    pub fn open_skill_creator_sub_page(
-        &mut self,
-        open_mode: pages::SkillCreatorOpenMode,
-        window: &mut Window,
-        cx: &mut Context<SettingsWindow>,
-    ) {
-        let creator_is_active_sub_page = self
-            .sub_page_stack
-            .last()
-            .is_some_and(|sub_page| sub_page.link.r#type == SubPageType::SkillCreator);
-
-        if creator_is_active_sub_page && let Some((page, _)) = &self.skill_creator_page {
-            let page = page.clone();
-            page.update(cx, |page, cx| page.apply_open_mode(open_mode, window, cx));
-            return;
-        }
-
-        let settings_window = cx.weak_entity();
-        let page = cx.new(|cx| pages::SkillCreatorPage::new(settings_window, window, cx));
-
-        let subscription =
-            cx.subscribe_in(
-                &page,
-                window,
-                |this, _page, event: &pages::SkillCreatorEvent, window, cx| match event {
-                    pages::SkillCreatorEvent::Dismissed | pages::SkillCreatorEvent::Saved => {
-                        if this.sub_page_stack.last().is_some_and(|sub_page| {
-                            sub_page.link.r#type == SubPageType::SkillCreator
-                        }) {
-                            this.pop_sub_page(window, cx);
-                        }
-                    }
-                },
-            );
-
-        self.skill_creator_page = Some((page.clone(), subscription));
-
-        let sub_page_link = SubPageLink {
-            title: "Create Skill".into(),
-            r#type: SubPageType::SkillCreator,
-            description: None,
-            search_aliases: &[],
-            json_path: None,
-            in_json: false,
-            files: USER | PROJECT,
-            render: pages::render_skill_creator_page,
-        };
-
-        self.push_sub_page(sub_page_link, "Agent".into(), window, cx);
-
-        let creating_from_url = !matches!(open_mode, pages::SkillCreatorOpenMode::Url { .. });
-        page.update(cx, |page, cx| {
-            page.apply_open_mode(open_mode, window, cx);
-        });
-        if creating_from_url {
-            let name_editor_focus_handle = page.read(cx).name_editor_focus_handle(cx);
-            window.focus(&name_editor_focus_handle, cx);
-        }
-    }
-
-    #[cfg(any())]
-    pub fn navigate_to_skill_creator(
-        &mut self,
-        open_mode: pages::SkillCreatorOpenMode,
-        window: &mut Window,
-        cx: &mut Context<SettingsWindow>,
-    ) {
-        self.sub_page_stack.clear();
-        let skills_page_index = self.pages.iter().position(|page| {
-            page.items.iter().any(|item| {
-                matches!(
-                    item,
-                    SettingsPageItem::SubPageLink(link)
-                        if link.json_path == Some(AGENT_SKILLS_SETTINGS_PATH)
-                )
-            })
-        });
-        if let Some(page_index) = skills_page_index
-            && let Some(navbar_entry_index) = self
-                .navbar_entries
-                .iter()
-                .position(|entry| entry.page_index == page_index && entry.is_root)
-        {
-            self.open_navbar_entry_page(navbar_entry_index);
-        }
-        self.navigate_to_sub_page(AGENT_SKILLS_SETTINGS_PATH, window, cx);
-        self.open_skill_creator_sub_page(open_mode, window, cx);
-    }
-
     /// Navigate to a sub-page by its json_path.
     /// Returns true if the sub-page was found and pushed, false otherwise.
     pub fn navigate_to_sub_page(
@@ -4803,7 +4629,7 @@ fn get_current_value<'a, T>(
     settings_store: &'a SettingsStore,
     file: &SettingsUiFile,
     field: &'a SettingField<T>,
-    cx: &'a App,
+    _cx: &'a App,
 ) -> Option<CurrentSettingsValue<'a, T>> {
     // Organization configuration overrides were served by the cloud account
     // system, which this fork does not have; settings come straight from the
@@ -5236,7 +5062,6 @@ pub mod test {
     use fs::Fs;
     use gpui::TestAppContext;
     use std::sync::atomic::{AtomicUsize, Ordering};
-
 
     struct ProjectSettingsTestSetup {
         fs: Arc<dyn Fs>,
