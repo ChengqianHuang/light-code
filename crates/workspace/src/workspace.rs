@@ -56,8 +56,8 @@ use gpui::{
     EventEmitter, FocusHandle, Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke,
     ManagedView, MouseButton, PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size,
     Stateful, Subscription, SystemWindowTabController, Task, TaskExt, Tiling, WeakEntity,
-    WindowBounds, WindowHandle, WindowId, WindowOptions, actions, canvas, point, relative, size,
-    transparent_black,
+    WindowBounds, WindowControlArea, WindowHandle, WindowId, WindowOptions, actions, canvas, point,
+    relative, size, transparent_black,
 };
 pub use history_manager::*;
 use http_client::HttpClientWithUrl;
@@ -136,7 +136,7 @@ pub use toolbar::{
     PaneSearchBarCallbacks, Toolbar, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView,
 };
 pub use ui;
-use ui::{Window, prelude::*};
+use ui::{Tab, Window, prelude::*};
 use url::Url;
 use util::{
     ResultExt, TryFutureExt,
@@ -7478,6 +7478,15 @@ impl Workspace {
         let dock_is_open = dock.read(cx).is_open();
         let a11y_active = window.is_a11y_active();
 
+        // On macOS the traffic lights sit at the window's top-left corner. The
+        // first pane's embedded tab bar pads for them in the center column, but
+        // an open left dock owns that corner, so the dock leads with a drag
+        // strip that aligns with the tab bar row and keeps the panel content
+        // clear of the lights.
+        let reserves_traffic_lights = position == DockPosition::Left
+            && cfg!(target_os = "macos")
+            && !window.is_fullscreen();
+
         let mut container = div()
             .id(dock_element_id)
             .when(dock_is_open, |this| {
@@ -7488,9 +7497,32 @@ impl Workspace {
                     })
             })
             .flex()
+            .when(reserves_traffic_lights, |this| this.flex_col())
             .overflow_hidden()
             .flex_none()
-            .child(dock.clone())
+            .when(reserves_traffic_lights, |this| {
+                this.child(
+                    div()
+                        .id("left-dock-traffic-light-inset")
+                        .h(Tab::container_height(cx))
+                        .w_full()
+                        .flex_none()
+                        .bg(cx.theme().colors().tab_bar_background)
+                        .border_b_1()
+                        .border_color(cx.theme().colors().border)
+                        .window_control_area(WindowControlArea::Drag),
+                )
+            })
+            .when(reserves_traffic_lights, |this| {
+                this.child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_hidden()
+                        .child(dock.clone()),
+                )
+            })
+            .when(!reserves_traffic_lights, |this| this.child(dock.clone()))
             .children(leader_border);
 
         // Apply sizing only when the dock is open. When closed the dock is still
