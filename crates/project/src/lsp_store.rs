@@ -5521,7 +5521,13 @@ impl LspStore {
             .collect()
     }
 
-    fn notify_server_capabilities_updated(&self, server: &LanguageServer, cx: &mut Context<Self>) {
+    fn notify_server_capabilities_updated(
+        &mut self,
+        server: &LanguageServer,
+        cx: &mut Context<Self>,
+    ) {
+        self.lsp_server_capabilities
+            .insert(server.server_id(), server.capabilities());
         let message = LanguageServerUpdateMessage::MetadataUpdated {
             binary: Some((
                 server.binary().path.to_string_lossy().into_owned(),
