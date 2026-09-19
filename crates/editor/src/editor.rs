@@ -42,8 +42,6 @@ mod mouse_context_menu;
 pub mod movement;
 mod persistence;
 mod runnables;
-#[cfg(any())]
-mod rust_analyzer_ext;
 pub mod scroll;
 mod selections_collection;
 pub mod semantic_tokens;

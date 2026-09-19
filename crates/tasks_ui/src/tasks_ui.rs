@@ -705,7 +705,6 @@ mod tests {
             let state = AppState::test(cx);
             crate::init(cx);
             editor::init(cx);
-            TaskStore::init(None);
             state
         })
     }

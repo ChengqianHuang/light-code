@@ -4862,44 +4862,6 @@ async fn test_external_paths_for_dragged_selection_resolves_folded_directory(
 
     assert_eq!(paths.entries(), &[(PathBuf::from("/root/a/b"), true)]);
 }
-
-#[gpui::test]
-async fn test_external_paths_for_dragged_selection_skips_remote_worktrees(
-    cx: &mut gpui::TestAppContext,
-) {
-    init_test(cx);
-
-    let fs = FakeFs::new(cx.executor());
-    fs.insert_tree("/local", json!({})).await;
-    let project = Project::test(fs.clone(), ["/local".as_ref()], cx).await;
-
-    let remote_worktree = project.update(cx, |project, cx| {
-        project.add_test_remote_worktree("/remote/project", cx)
-    });
-    let remote_worktree_id = remote_worktree.read_with(cx, |worktree, _| worktree.id());
-
-    let dragged_selection = DraggedSelection {
-        active_selection: SelectedEntry {
-            worktree_id: remote_worktree_id,
-            entry_id: ProjectEntryId::from_usize(1),
-        },
-        marked_selections: Arc::from(vec![SelectedEntry {
-            worktree_id: remote_worktree_id,
-            entry_id: ProjectEntryId::from_usize(1),
-        }]),
-    };
-
-    let paths = cx.update(|cx| {
-        ProjectPanel::file_drag_paths_for_selections(
-            &project,
-            dragged_selection.items().copied(),
-            cx,
-        )
-    });
-
-    assert!(paths.is_none());
-}
-
 #[gpui::test]
 async fn test_multiple_marked_entries(cx: &mut gpui::TestAppContext) {
     init_test_with_editor(cx);

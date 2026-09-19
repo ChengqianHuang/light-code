@@ -1385,7 +1385,6 @@ mod tests {
             ProjectSettings::register(cx);
             WorktreeSettings::register(cx);
             WorkspaceSettings::register(cx);
-            TaskStore::init(None);
         });
     }
 
