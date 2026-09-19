@@ -10,29 +10,24 @@ use crate::{
 };
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
-use clock::Global;
 use collections::HashMap;
 use futures::future;
-use gpui::{App, AsyncApp, Entity, SharedString, Task, TaskExt, prelude::FluentBuilder};
+use gpui::{App, AsyncApp, Entity, SharedString, prelude::FluentBuilder};
 use language::{
     Anchor, Bias, Buffer, BufferSnapshot, CachedLspAdapter, CharKind, CharScopeContext,
-    OffsetRangeExt, PointUtf16, SymbolKind, ToOffset, ToPointUtf16, Transaction, Unclipped,
+    OffsetRangeExt, PointUtf16, ToOffset, ToPointUtf16, Transaction, Unclipped,
     language_settings::{InlayHintKind, LanguageSettings},
     lsp_to_symbol_kind, point_from_lsp, point_to_lsp, range_from_lsp, range_to_lsp,
-    symbol_kind_to_lsp,
 };
 use lsp::{
-    AdapterServerCapabilities, CodeActionKind, CodeActionOptions, CodeDescription,
-    CompletionContext, CompletionListItemDefaultsEditRange, CompletionTriggerKind,
-    DocumentHighlightKind, LanguageServer, LanguageServerId, LinkedEditingRangeServerCapabilities,
+    AdapterServerCapabilities, CodeActionKind, CodeActionOptions,
+    CompletionContext, CompletionListItemDefaultsEditRange, LanguageServer, LanguageServerId, LinkedEditingRangeServerCapabilities,
     OneOf, RenameOptions, ServerCapabilities,
 };
-use serde_json::Value;
 
-use std::{cmp::Reverse, collections::hash_map, ops::Range, path::Path, str::FromStr, sync::Arc};
-use text::{BufferId, LineEnding};
-use util::rel_path::RelPath;
-use util::{ResultExt as _, debug_panic};
+use std::{cmp::Reverse, collections::hash_map, ops::Range, path::Path, sync::Arc};
+use text::LineEnding;
+use util::debug_panic;
 
 pub use signature_help::SignatureHelp;
 

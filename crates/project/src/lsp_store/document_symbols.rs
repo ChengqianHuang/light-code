@@ -5,22 +5,19 @@ use std::time::Duration;
 use anyhow::Context as _;
 use collections::{HashMap, HashSet};
 use futures::FutureExt as _;
-use futures::future::{Shared, join_all};
-use gpui::{AppContext as _, AsyncApp, Context, Entity, Task};
+use futures::future::Shared;
+use gpui::{AppContext as _, Context, Entity, Task};
 use itertools::Itertools;
 use language::{Buffer, BufferSnapshot, OutlineItem};
 use lsp::LanguageServerId;
-use settings::Settings as _;
 use text::{Anchor, Bias, PointUtf16};
 use util::ResultExt;
 
 use crate::DocumentSymbol;
-use crate::lsp_command::{GetDocumentSymbols, LspCommand as _};
+use crate::lsp_command::GetDocumentSymbols;
 use crate::lsp_store::{
     LspStore, LspStoreEvent, RunningFetch, missing_servers_to_query, next_lsp_fetch_id,
-    upstream_lsp_query_server_filter,
 };
-use crate::project_settings::ProjectSettings;
 
 pub(super) type DocumentSymbolsTask =
     Shared<Task<std::result::Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;

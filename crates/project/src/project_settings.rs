@@ -4,7 +4,7 @@ use dap::adapters::DebugAdapterName;
 use fs::Fs;
 use futures::StreamExt as _;
 use git::repository::DEFAULT_WORKTREE_DIRECTORY;
-use gpui::{AsyncApp, BorrowAppContext, Context, Entity, EventEmitter, Subscription, Task};
+use gpui::{BorrowAppContext, Context, Entity, EventEmitter, Subscription, Task};
 use lsp::{DEFAULT_LSP_REQUEST_TIMEOUT_SECS, LanguageServerName};
 use paths::{
     EDITORCONFIG_NAME, debug_task_file_name, local_debug_file_relative_path,
@@ -1146,7 +1146,7 @@ impl SettingsObserver {
         cx: &mut Context<Self>,
     ) {
         let worktree_id = worktree.read(cx).id();
-        let remote_worktree_id = worktree.read(cx).id();
+        let _remote_worktree_id = worktree.read(cx).id();
         let task_store = self.task_store.clone();
         let can_trust_worktree = if is_via_collab {
             OnceCell::from(true)

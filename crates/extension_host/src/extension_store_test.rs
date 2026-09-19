@@ -11,7 +11,7 @@ use crate::{
 };
 use async_compression::futures::bufread::GzipEncoder;
 use async_trait::async_trait;
-use collections::{BTreeMap, HashMap, HashSet};
+use collections::{BTreeMap, HashSet};
 use extension::{
     BuildTaskTemplate, CodeLabel, Command, Completion, ContextServerConfiguration,
     DebugAdapterBinary, DebugRequest, DebugScenario, DebugTaskDefinition, Extension,
@@ -42,7 +42,7 @@ use std::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 use task::{SpawnInTerminal, ZedDebugConfig};
 use theme::ThemeRegistry;

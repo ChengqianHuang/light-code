@@ -359,7 +359,7 @@ impl PickerDelegate for AttachModalDelegate {
     }
 }
 
-fn get_processes_for_project(project: &Entity<Project>, cx: &mut App) -> Task<Arc<[Candidate]>> {
+fn get_processes_for_project(project: &Entity<Project>, _cx: &mut App) -> Task<Arc<[Candidate]>> {
     let _project = project;
     let refresh_kind = RefreshKind::nothing().with_processes(
         ProcessRefreshKind::nothing()

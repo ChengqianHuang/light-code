@@ -5,21 +5,17 @@ use std::time::Duration;
 use anyhow::Context as _;
 use collections::{HashMap, HashSet};
 use futures::FutureExt as _;
-use futures::future::{Shared, join_all};
-use gpui::{AppContext as _, AsyncApp, Context, Entity, SharedString, Task};
+use futures::future::Shared;
+use gpui::{AppContext as _, Context, Entity, SharedString, Task};
 use itertools::Itertools;
 use language::Buffer;
 use lsp::LanguageServerId;
-use settings::Settings as _;
 use text::Anchor;
-use util::ResultExt as _;
 
-use crate::lsp_command::{GetFoldingRanges, LspCommand as _};
+use crate::lsp_command::GetFoldingRanges;
 use crate::lsp_store::{
     LspStore, LspStoreEvent, RunningFetch, missing_servers_to_query, next_lsp_fetch_id,
-    upstream_lsp_query_server_filter,
 };
-use crate::project_settings::ProjectSettings;
 
 #[derive(Clone, Debug)]
 pub struct LspFoldingRange {

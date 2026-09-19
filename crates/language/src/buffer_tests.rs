@@ -1,34 +1,29 @@
 use super::*;
 use crate::Buffer;
 use clock::ReplicaId;
-use collections::BTreeMap;
 use futures::FutureExt as _;
 use futures_lite::future::yield_now;
 use gpui::{App, AppContext as _, BorrowAppContext, Entity};
-use gpui::{HighlightStyle, TestAppContext};
+use gpui::TestAppContext;
 use indoc::indoc;
 use pretty_assertions::assert_eq;
-use proto::deserialize_operation;
 use rand::prelude::*;
 use regex::RegexBuilder;
 use settings::SettingsStore;
 use settings::{AllLanguageSettingsContent, LanguageSettingsContent};
 use std::collections::BTreeSet;
 use std::{
-    env,
     ops::Range,
     sync::LazyLock,
     time::{Duration, Instant},
 };
 use syntax_map::{MAX_BYTES_TO_QUERY, TreeSitterOptions};
-use text::network::Network;
 use text::{BufferId, LineEnding};
 use text::{Point, ToPoint};
-use theme::ActiveTheme;
 use unindent::Unindent as _;
 use util::rel_path::rel_path;
 use util::test::marked_text_offsets;
-use util::{RandomCharIter, assert_set_eq, post_inc, test::marked_text_ranges};
+use util::{assert_set_eq, test::marked_text_ranges};
 
 pub static TRAILING_WHITESPACE_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
     RegexBuilder::new(r"[ \t]+$")

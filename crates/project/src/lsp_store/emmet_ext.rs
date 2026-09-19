@@ -6,7 +6,6 @@ use gpui::{App, AsyncApp, Entity};
 use language::Buffer;
 use lsp::{AdapterServerCapabilities, LanguageServer, LanguageServerId};
 use serde::{Deserialize, Serialize};
-use text::BufferId;
 
 use crate::{
     lsp_command::LspCommand,

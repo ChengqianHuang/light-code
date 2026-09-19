@@ -24,7 +24,7 @@ pub use crate::{
     diagnostic_set::DiagnosticSet,
 };
 
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use clock::Lamport;
 pub use clock::ReplicaId;
 use collections::HashMap;

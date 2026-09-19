@@ -1342,7 +1342,7 @@ mod tests {
     use gpui::{App, Task, TestAppContext};
     use language::language_settings::AllLanguageSettings;
     use project::project_settings::ProjectSettings;
-    use project::task_store::{TaskSettingsLocation, TaskStore};
+    use project::task_store::TaskSettingsLocation;
     use project::{FakeFs, WorktreeSettings};
     use serde_json::json;
     use settings::{SettingsLocation, SettingsStore};

@@ -23,20 +23,18 @@ pub mod worktree_store;
 mod environment;
 use buffer_diff::BufferDiff;
 pub use environment::ProjectEnvironmentEvent;
-use git::repository::get_git_committer;
 use git_store::{Repository, RepositoryId};
 pub mod search_history;
 pub mod yarn;
 
 use dap::inline_value::{InlineValueLocation, VariableLookupKind, VariableScope};
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 
 use crate::{
     bookmark_store::BookmarkStore,
     git_store::GitStore,
     lsp_store::{SymbolLocation, log_store::LogKind},
     project_search::SearchResultsHandle,
-    trusted_worktrees::{PathTrust, RemoteHostLocation, TrustedWorktrees},
     worktree_store::WorktreeIdCounter,
 };
 pub use git_store::{
@@ -68,7 +66,6 @@ pub use environment::ProjectEnvironment;
 
 use futures::{
     StreamExt,
-    channel::mpsc::{self, UnboundedReceiver},
     future::try_join_all,
 };
 pub use image_store::{ImageItem, ImageStore};
@@ -87,7 +84,6 @@ use language::{
 use lsp::{
     CodeActionKind, CompletionContext, CompletionItemKind, DocumentHighlightKind, InsertTextMode,
     LanguageServerBinary, LanguageServerId, LanguageServerName, LanguageServerSelector,
-    MessageActionItem,
 };
 pub use lsp_command::EditPredictionDefinition;
 use lsp_command::*;
@@ -99,7 +95,7 @@ pub use prettier_store::PrettierStore;
 use project_settings::{ProjectSettings, SettingsObserver, SettingsObserverEvent};
 use search::{SearchInputKind, SearchQuery, SearchResult};
 use search_history::SearchHistory;
-use settings::{InvalidSettingsError, RegisterSetting, Settings, SettingsLocation, SettingsStore};
+use settings::{InvalidSettingsError, RegisterSetting, Settings, SettingsLocation};
 use snippet::Snippet;
 pub use snippet_provider;
 use snippet_provider::SnippetProvider;
@@ -110,7 +106,6 @@ use std::{
     future::Future,
     ops::{Not as _, Range},
     path::{Path, PathBuf},
-    pin::pin,
     str::{self, FromStr},
     sync::Arc,
     time::Duration,
@@ -119,7 +114,6 @@ use std::{
 use task_store::TaskStore;
 use terminals::Terminals;
 use text::{Anchor, BufferId, Point, Rope};
-use toolchain_store::EmptyToolchainStore;
 use util::{
     ResultExt as _, maybe,
     path_list::PathList,
@@ -1403,7 +1397,7 @@ impl Project {
     }
 
     #[inline]
-    #[inline]
+    
     pub fn buffer_for_id(&self, remote_id: BufferId, cx: &App) -> Option<Entity<Buffer>> {
         self.buffer_store.read(cx).get(remote_id)
     }
@@ -1414,9 +1408,9 @@ impl Project {
     }
 
     #[inline]
-    #[inline]
-    #[inline]
-    #[inline]
+    
+    
+    
     pub fn node_runtime(&self) -> Option<&NodeRuntime> {
         self.node.as_ref()
     }
@@ -1473,7 +1467,7 @@ impl Project {
     }
 
     #[inline]
-    #[inline]
+    
     /// Reveals the given path in the system file manager.
     ///
     /// On Windows with a WSL remote connection, this converts the POSIX path
@@ -1540,9 +1534,9 @@ impl Project {
     }
 
     #[inline]
-    #[inline]
+    
     /// Collect all worktrees, including ones that don't appear in the project panel
-    #[inline]
+    
     pub fn worktrees<'a>(
         &self,
         cx: &'a App,
@@ -1924,7 +1918,7 @@ impl Project {
     }
 
     #[inline]
-    #[inline]
+    
     pub fn close(&mut self, cx: &mut Context<Self>) {
         cx.emit(Event::Closed);
     }
@@ -1935,7 +1929,7 @@ impl Project {
     }
 
     #[inline]
-    #[inline]
+    
     pub fn capability(&self) -> Capability {
         Capability::ReadWrite
     }
@@ -1974,7 +1968,7 @@ impl Project {
 
     #[inline]
     /// Whether this project is served by a WSL distribution.
-    #[inline]
+    
     pub fn disable_worktree_scanner(&mut self, cx: &mut Context<Self>) {
         self.worktree_store.update(cx, |worktree_store, _cx| {
             worktree_store.disable_scanner();
@@ -2298,7 +2292,7 @@ impl Project {
             BufferStoreEvent::BufferAdded(buffer) => {
                 self.register_buffer(buffer, cx).log_err();
             }
-            BufferStoreEvent::BufferDropped(buffer_id) => {}
+            BufferStoreEvent::BufferDropped(_buffer_id) => {}
             _ => {}
         }
     }
@@ -2609,7 +2603,7 @@ impl Project {
             cx.emit(Event::BufferEdited { source: *source });
         }
 
-        let buffer_id = buffer.read(cx).remote_id();
+        let _buffer_id = buffer.read(cx).remote_id();
         match event {
             BufferEvent::ReloadNeeded => {
                 if !self.is_via_collab() {

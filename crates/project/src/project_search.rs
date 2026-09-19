@@ -17,7 +17,6 @@ use futures::FutureExt as _;
 use futures::{SinkExt, StreamExt, select_biased, stream::FuturesOrdered};
 use gpui::{App, AppContext, AsyncApp, BackgroundExecutor, Entity, Priority, Task};
 use language::{Buffer, BufferSnapshot, Point};
-use parking_lot::Mutex;
 use postage::oneshot;
 
 use language::ByteContent;
@@ -28,7 +27,7 @@ use worktree::{
 };
 
 use crate::{
-    Project, ProjectItem, ProjectPath, RemotelyCreatedModels,
+    ProjectItem, ProjectPath,
     buffer_store::BufferStore,
     search::{MatchPositionHint, SearchQuery, SearchResult},
     worktree_store::WorktreeStore,

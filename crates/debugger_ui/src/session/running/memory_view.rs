@@ -4,7 +4,6 @@ use std::{
     ops::RangeInclusive,
     rc::Rc,
     sync::{Arc, LazyLock},
-    time::Duration,
 };
 
 use editor::{Editor, EditorElement, EditorStyle};

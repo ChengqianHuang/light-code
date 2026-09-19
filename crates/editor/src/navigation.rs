@@ -1154,7 +1154,7 @@ impl Editor {
             };
 
             if let Some(url) = url {
-                cx.update(|window, cx| {
+                cx.update(|_window, cx| {
                     cx.open_url(&url);
                 })?;
             }
@@ -1843,7 +1843,7 @@ impl Editor {
                 // If there is one url or file, open it directly
                 match first_url_or_file {
                     Some(Either::Left(url)) => {
-                        cx.update(|window, cx| {
+                        cx.update(|_window, cx| {
                             cx.open_url(&url);
                         })?;
                         Ok(Navigated::Yes)

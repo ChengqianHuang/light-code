@@ -1,6 +1,5 @@
 use std::{ops::Range, slice::ChunksExact, sync::Arc};
 
-use anyhow::Result;
 
 use clock::Global;
 use collections::{HashMap, HashSet};
@@ -8,7 +7,7 @@ use futures::{
     FutureExt as _,
     future::{Shared, join_all},
 };
-use gpui::{App, AppContext, AsyncApp, Context, Entity, ReadGlobal as _, SharedString, Task};
+use gpui::{App, AppContext, Context, Entity, ReadGlobal as _, SharedString, Task};
 use language::{Buffer, LanguageName, language_settings::all_language_settings};
 use lsp::LanguageServerId;
 use settings::{
@@ -17,12 +16,11 @@ use settings::{
 use smol::future::yield_now;
 
 use text::{Anchor, Bias, OffsetUtf16, PointUtf16, Unclipped};
-use util::ResultExt as _;
 
 use crate::{
     LanguageServerToQuery, LspStore, LspStoreEvent,
     lsp_command::{
-        LspCommand, SemanticTokensDelta, SemanticTokensEdit, SemanticTokensFull,
+        SemanticTokensDelta, SemanticTokensEdit, SemanticTokensFull,
         SemanticTokensResponse,
     },
     lsp_store::{

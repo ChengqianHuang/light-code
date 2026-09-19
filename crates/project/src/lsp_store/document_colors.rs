@@ -4,22 +4,19 @@ use anyhow::{Context as _, Result};
 use collections::{HashMap, HashSet};
 use futures::{
     FutureExt as _,
-    future::{Shared, join_all},
+    future::Shared,
 };
-use gpui::{AppContext as _, AsyncApp, Context, Entity, SharedString, Task};
-use language::{Buffer, LocalFile as _, PointUtf16, point_to_lsp};
+use gpui::{AppContext as _, Context, Entity, SharedString, Task};
+use language::{Buffer, LocalFile as _};
 use lsp::LanguageServerId;
 use settings::Settings as _;
-use text::BufferId;
-use util::ResultExt as _;
 use worktree::File;
 
 use crate::{
     ColorPresentation, DocumentColor, LspStore,
-    lsp_command::{GetDocumentColor, LspCommand as _, make_text_document_identifier},
+    lsp_command::{GetDocumentColor, make_text_document_identifier},
     lsp_store::{
         LspStoreEvent, RunningFetch, missing_servers_to_query, next_lsp_fetch_id,
-        upstream_lsp_query_server_filter,
     },
     project_settings::ProjectSettings,
 };

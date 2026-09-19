@@ -13,13 +13,12 @@ use super::dap_store::DapStore;
 use crate::debugger::breakpoint_store::BreakpointSessionState;
 use crate::debugger::dap_command::{DataBreakpointContext, ReadMemory};
 use crate::debugger::memory::{self, Memory, MemoryIterator, MemoryPageBuilder, PageAddress};
-use anyhow::{Context as _, Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow};
 use base64::Engine;
 use collections::{HashMap, HashSet, IndexMap, TypeIdHashMap};
 use dap::adapters::{DebugAdapterBinary, DebugAdapterName};
 use dap::messages::Response;
 use dap::requests::{Request, RunInTerminal, StartDebugging};
-use dap::transport::TcpTransport;
 use dap::{
     Capabilities, ContinueArguments, EvaluateArgumentsContext, Module, Source, StackFrameId,
     SteppingGranularity, StoppedEvent, VariableReference,
@@ -33,8 +32,7 @@ use dap::{
 };
 use futures::channel::mpsc::UnboundedSender;
 use futures::channel::{mpsc, oneshot};
-use futures::io::BufReader;
-use futures::{AsyncBufReadExt as _, SinkExt, StreamExt, TryStreamExt};
+use futures::{SinkExt, StreamExt, TryStreamExt};
 use futures::{FutureExt, future::Shared};
 use gpui::{
     App, AppContext, AsyncApp, BackgroundExecutor, Context, Entity, EventEmitter, SharedString,
@@ -44,13 +42,11 @@ use http_client::HttpClient;
 use node_runtime::NodeRuntime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use smol::net::{TcpListener, TcpStream};
+use smol::net::TcpListener;
 use std::any::TypeId;
 use std::collections::{BTreeMap, VecDeque};
-use std::net::{IpAddr, Ipv4Addr};
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
-use std::time::Duration;
 use std::{
     any::Any,
     collections::hash_map::Entry,
@@ -60,7 +56,6 @@ use std::{
 };
 use task::SharedTaskContext;
 use text::{PointUtf16, ToPointUtf16};
-use url::Url;
 use util::command::Stdio;
 use util::command::new_command;
 use util::{ResultExt, debug_panic, maybe};

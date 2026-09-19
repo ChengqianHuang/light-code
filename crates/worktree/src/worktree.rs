@@ -2,13 +2,12 @@ mod ignore;
 mod worktree_settings;
 
 use ::ignore::gitignore::{Gitignore, GitignoreBuilder};
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result};
 use clock::ReplicaId;
 use collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use encoding_rs::Encoding;
 use fs::{
     Fs, MTime, PathEvent, PathEventKind, RemoveOptions, TrashId, Watcher, copy_recursive,
-    read_dir_items,
 };
 use futures::{
     FutureExt as _, Stream, StreamExt,
@@ -37,7 +36,6 @@ use language::{
 };
 
 use async_channel::{self, Sender};
-use parking_lot::Mutex;
 use paths::{local_settings_folder_name, local_vscode_folder_name};
 use postage::{
     barrier,
@@ -52,7 +50,6 @@ use std::{
     borrow::Borrow as _,
     cmp::Ordering,
     collections::hash_map,
-    convert::TryFrom,
     ffi::OsStr,
     fmt,
     future::Future,
@@ -71,7 +68,7 @@ use sum_tree::{Bias, Dimensions, Edit, KeyedItem, SeekTarget, SumTree, Summary, 
 use text::{LineEnding, Rope};
 use util::{
     ResultExt, maybe,
-    paths::{PathMatcher, PathStyle, SanitizedPath, home_dir},
+    paths::{PathStyle, SanitizedPath, home_dir},
     rel_path::RelPath,
 };
 pub use worktree_settings::WorktreeSettings;
@@ -727,7 +724,7 @@ impl Worktree {
         content: Option<Vec<u8>>,
         cx: &Context<Worktree>,
     ) -> Task<Result<CreatedEntry>> {
-        let worktree_id = self.id();
+        let _worktree_id = self.id();
         match self {
             Worktree::Local(this) => this.create_entry(path, is_directory, content, cx),
         }
@@ -803,7 +800,7 @@ impl Worktree {
         &mut self,
         target_directory: Arc<RelPath>,
         paths: Vec<Arc<Path>>,
-        fs: Arc<dyn Fs>,
+        _fs: Arc<dyn Fs>,
         cx: &Context<Worktree>,
     ) -> Task<Result<Vec<ProjectEntryId>>> {
         match self {

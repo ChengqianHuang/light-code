@@ -978,8 +978,8 @@ impl LogStore {
 
     fn emit_event(&mut self, e: Event, cx: &mut Context<Self>) {
         match &e {
-            Event::NewServerLogEntry { key, kind, text } => {
-                if let Some(state) = self.get_language_server_state(key) {}
+            Event::NewServerLogEntry { key, kind: _, text: _ } => {
+                if let Some(_state) = self.get_language_server_state(key) {}
             }
         }
 

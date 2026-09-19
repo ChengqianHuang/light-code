@@ -7,7 +7,6 @@ use dap::{
     InitializeRequestArgumentsPathFormat, NextArguments, SetVariableResponse, SourceBreakpoint,
     StepInArguments, StepOutArguments, SteppingGranularity, ValueFormat, Variable,
     VariablesArgumentsFilter,
-    client::SessionId,
     requests::{Continue, Next},
 };
 

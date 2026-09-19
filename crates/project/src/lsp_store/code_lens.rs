@@ -7,7 +7,7 @@ use futures::{
     FutureExt as _,
     future::{Shared, join_all},
 };
-use gpui::{AppContext as _, AsyncApp, Context, Entity, Task};
+use gpui::{AppContext as _, Context, Entity, Task};
 use language::{Anchor, Buffer};
 use lsp::LanguageServerId;
 use settings::Settings as _;
@@ -19,7 +19,7 @@ use crate::{
     CodeAction, LspAction, LspStore, LspStoreEvent, Project,
     lsp_command::{GetCodeLens, LspCommand as _},
     lsp_store::{
-        RunningFetch, missing_servers_to_query, next_lsp_fetch_id, upstream_lsp_query_server_filter,
+        RunningFetch, missing_servers_to_query, next_lsp_fetch_id,
     },
     project_settings::ProjectSettings,
 };
@@ -327,7 +327,7 @@ impl LspStore {
             return Task::ready(None).shared();
         };
         let lens = lens.clone();
-        let action = cached.clone();
+        let _action = cached.clone();
 
         if !self.text_document_capability_matches_for_server(
             buffer,

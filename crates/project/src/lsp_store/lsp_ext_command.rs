@@ -6,7 +6,7 @@ use crate::{
     lsp_store::{LanguageServerToQuery, LspStore},
     make_lsp_text_document_position, make_text_document_identifier,
 };
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use collections::HashMap;
 use gpui::{App, AsyncApp, Entity};

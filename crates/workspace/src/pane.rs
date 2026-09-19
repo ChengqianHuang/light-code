@@ -4148,10 +4148,10 @@ impl Pane {
         let mut to_pane = cx.entity();
         let mut split_direction = self.drag_split_direction;
         let paths = paths.paths().to_vec();
-        let (should_block, needs_wsl_translation) = self
+        let (should_block, _needs_wsl_translation) = self
             .workspace
             .update(cx, |workspace, cx| {
-                let project = workspace.project().read(cx);
+                let _project = workspace.project().read(cx);
 
                 (false, false)
             })
@@ -4163,7 +4163,7 @@ impl Pane {
         self.workspace
             .update(cx, |workspace, cx| {
                 let fs = Arc::clone(workspace.project().read(cx).fs());
-                let project = workspace.project().clone();
+                let _project = workspace.project().clone();
                 cx.spawn_in(window, async move |workspace, cx| {
                     // `fs` is the host's file system even for remote projects, so probe the paths as they were dropped, before translating them to the remote's path style.
                     let mut is_file_checks = FuturesUnordered::new();

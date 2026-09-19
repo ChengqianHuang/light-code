@@ -6,12 +6,10 @@ use std::{
 use anyhow::Context as _;
 use collections::HashMap;
 use fs::Fs;
-use gpui::{App, AsyncApp, Context, Entity, EventEmitter, Task, WeakEntity};
+use gpui::{App, Context, Entity, EventEmitter, Task, WeakEntity};
 use language::{ContextLocation, ContextProvider as _, LanguageToolchainStore, Location};
 use settings::{InvalidSettingsError, SettingsLocation};
-use task::{TaskContext, TaskVariables, VariableName};
-use text::{BufferId, OffsetRangeExt};
-use util::ResultExt;
+use task::{TaskContext, TaskVariables};
 
 use crate::{
     BasicContextProvider, Inventory, ProjectEnvironment, buffer_store::BufferStore,

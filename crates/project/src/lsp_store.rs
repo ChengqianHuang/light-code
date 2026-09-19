@@ -34,7 +34,7 @@ use self::inlay_hints::BufferInlayHints;
 use crate::{
     CodeAction, Completion, CompletionDisplayOptions, CompletionResponse, CompletionSource,
     CoreCompletion, Hover, InlayHint, InlayId, LocationLink, LspAction, LspPullDiagnostics,
-    ManifestProvidersStore, Project, ProjectItem, ProjectPath, ProjectTransaction,
+    ManifestProvidersStore, ProjectItem, ProjectPath, ProjectTransaction,
     PulledDiagnostics, ResolveState, Symbol,
     buffer_store::{BufferStore, BufferStoreEvent},
     environment::ProjectEnvironment,
@@ -42,7 +42,6 @@ use crate::{
     lsp_store::{
         self,
         folding_ranges::FoldingRangeData,
-        log_store::{GlobalLogStore, LanguageServerKind},
         semantic_tokens::{SemanticTokenConfig, SemanticTokensData},
     },
     manifest_tree::{
@@ -87,7 +86,6 @@ use language::{
         all_language_settings,
     },
     lsp_to_symbol_kind, modeline, point_to_lsp, range_from_lsp, range_to_lsp,
-    row_chunk::RowChunk,
 };
 use lsp::{
     AdapterServerCapabilities, CodeActionKind, CompletionContext, DEFAULT_LSP_REQUEST_TIMEOUT,
@@ -110,7 +108,6 @@ use settings::{Settings, SettingsLocation, SettingsStore};
 use sha2::{Digest, Sha256};
 use snippet::Snippet;
 use std::{
-    any::TypeId,
     borrow::Cow,
     cell::RefCell,
     cmp::{Ordering, Reverse},
@@ -4878,7 +4875,7 @@ impl LspStore {
                 .detach()
             }
             WorktreeStoreEvent::WorktreeRemoved(_, id) => self.remove_worktree(*id, cx),
-            WorktreeStoreEvent::WorktreeUpdateSent(worktree) => {}
+            WorktreeStoreEvent::WorktreeUpdateSent(_worktree) => {}
             WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, changes) => {
                 self.invalidate_diagnostic_summaries_for_removed_entries(*worktree_id, changes, cx);
             }
@@ -6834,7 +6831,7 @@ impl LspStore {
         context: CompletionContext,
         cx: &mut Context<Self>,
     ) -> Task<Result<Vec<CompletionResponse>>> {
-        let language_registry = self.languages.clone();
+        let _language_registry = self.languages.clone();
 
         if let Some(local) = self.as_local() {
             let snapshot = buffer.read(cx).snapshot();
@@ -6951,7 +6948,7 @@ impl LspStore {
         completions: Rc<RefCell<Box<[Completion]>>>,
         cx: &mut Context<Self>,
     ) -> Task<Result<bool>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let _buffer_id = buffer.read(cx).remote_id();
         let buffer_snapshot = buffer.read(cx).snapshot();
         let resolvable_servers = completion_indices
             .iter()
@@ -10495,7 +10492,7 @@ impl LspStore {
         &mut self,
         server_id: LanguageServerId,
         token_to_cancel: Option<ProgressToken>,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) {
         if let Some(local) = self.as_local() {
             let status = self.language_server_statuses.get(&server_id);

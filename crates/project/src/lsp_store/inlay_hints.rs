@@ -3,15 +3,14 @@ use std::{collections::hash_map, ops::Range, sync::Arc};
 use anyhow::{Context as _, Result};
 use collections::{HashMap, HashSet};
 use futures::future::Shared;
-use gpui::{App, AppContext as _, AsyncApp, Context, Entity, Task};
+use gpui::{App, AppContext as _, Context, Entity, Task};
 use language::{
     Buffer,
     row_chunk::{RowChunk, RowChunks},
 };
 use lsp::LanguageServerId;
 use settings::Settings as _;
-use text::{BufferId, Point};
-use util::ResultExt as _;
+use text::Point;
 
 use crate::{
     InlayHint, InlayId, LspStore, LspStoreEvent, ResolveState, lsp_command::InlayHints,

@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::Context as _;
 use collections::{HashMap, HashSet};
 use futures::FutureExt as _;
-use futures::future::{Shared, join_all};
-use gpui::{AppContext as _, AsyncApp, Context, Entity, SharedString, Task};
+use futures::future::Shared;
+use gpui::{AppContext as _, Context, Entity, SharedString, Task};
 use language::{Buffer, point_to_lsp};
 use lsp::LanguageServerId;
 use lsp::request::DocumentLinkResolve;
@@ -349,7 +349,7 @@ impl LspStore {
         cx: &mut Context<Self>,
     ) -> Task<Option<lsp::DocumentLink>> {
         let snapshot = buffer.read(cx).snapshot();
-        let buffer_id = buffer.read(cx).remote_id();
+        let _buffer_id = buffer.read(cx).remote_id();
         let lsp_link = lsp::DocumentLink {
             range: lsp::Range {
                 start: point_to_lsp(cached_link.range.start.to_point_utf16(&snapshot)),

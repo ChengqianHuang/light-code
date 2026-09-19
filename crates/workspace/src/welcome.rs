@@ -387,7 +387,7 @@ impl WelcomePage {
         &self,
         project_index: usize,
         tab_index: usize,
-        location: &SerializedWorkspaceLocation,
+        _location: &SerializedWorkspaceLocation,
         paths: &PathList,
     ) -> impl IntoElement {
         let name = project_name(paths);

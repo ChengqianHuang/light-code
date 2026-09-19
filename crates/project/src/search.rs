@@ -14,7 +14,7 @@ use std::{
 };
 use text::Anchor;
 use util::{
-    paths::{PathMatcher, PathStyle},
+    paths::PathMatcher,
     rel_path::RelPath,
 };
 

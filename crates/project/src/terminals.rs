@@ -14,11 +14,11 @@ use std::{
 };
 use task::{Shell, ShellBuilder, ShellKind, SpawnInTerminal};
 use terminal::{
-    Terminal, TerminalBuilder, TerminalMode, insert_zed_terminal_env,
+    Terminal, TerminalBuilder, TerminalMode,
     terminal_settings::TerminalSettings,
 };
 use util::{
-    command::new_std_command, get_default_system_shell, get_system_shell, maybe, rel_path::RelPath,
+    command::new_std_command, get_system_shell, maybe, rel_path::RelPath,
 };
 
 use crate::{Project, ProjectPath};
@@ -257,11 +257,11 @@ impl Project {
     fn create_terminal_shell_internal(
         &mut self,
         cwd: Option<PathBuf>,
-        force_local: bool,
+        _force_local: bool,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
         let path = cwd.map(|p| Arc::from(&*p));
-        let is_via_remote = false;
+        let _is_via_remote = false;
 
         let mut settings_location = None;
         if let Some(path) = path.as_ref()
@@ -455,7 +455,7 @@ impl Project {
             let mut env = env_task.await.unwrap_or_default();
             env.extend(settings.env);
 
-            project.update(cx, move |_, cx| {
+            project.update(cx, move |_, _cx| {
                 {
                     let mut command = new_std_command(command);
                     command.args(args);
