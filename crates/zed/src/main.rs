@@ -11,10 +11,8 @@ use extension::ExtensionHostProxy;
 use fs::{Fs, RealFs};
 use git::GitHostingProviderRegistry;
 use gpui::{
-    App, AppContext as _, Application, AsyncWindowContext, Context, IntoElement, QuitMode, Render,
-    ParentElement as _, StatefulInteractiveElement as _, Styled as _, Task,
-    TaskExt as _, TitlebarOptions,
-    WeakEntity, Window, WindowOptions, px,
+    App, AppContext as _, Application, AsyncWindowContext, Context, QuitMode, Task, TaskExt as _,
+    TitlebarOptions, WeakEntity, Window, WindowOptions, px,
 };
 use http_client::HttpClientWithUrl;
 use language::LanguageRegistry;
@@ -23,13 +21,9 @@ use release_channel::AppVersion;
 use reqwest_client::ReqwestClient;
 use session::{AppSession, Session};
 use theme::ThemeRegistry;
-use ui::{ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize, Tooltip, h_flex};
 use util::ResultExt as _;
 use uuid::Uuid;
-use workspace::{
-    AppState, OpenOptions, Panel, StatusItemView, Workspace, WorkspaceStore,
-    item::ItemHandle,
-};
+use workspace::{AppState, OpenOptions, Panel, Workspace, WorkspaceStore};
 
 fn local_window_options(_: Option<Uuid>, _: &mut App) -> WindowOptions {
     WindowOptions {
@@ -59,59 +53,6 @@ fn initialize_local_workspaces(cx: &mut App) {
     .detach();
 }
 
-
-struct WorkspaceButtons;
-
-impl Render for WorkspaceButtons {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        // Matches the deleted agent sidebar's bottom bar button: FolderAdd,
-        // "Add Project", opening the recent projects popover.
-        h_flex()
-            .gap_1()
-            .child(
-                IconButton::new("status-bar-add-project", IconName::FolderAdd)
-                    .icon_size(IconSize::Small)
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(
-                            Box::new(zed_actions::OpenRecent::default()),
-                            cx,
-                        );
-                    })
-                    .tooltip(|window, cx| {
-                        Tooltip::for_action(
-                            "Add Project",
-                            &zed_actions::OpenRecent::default(),
-                            cx,
-                        )
-                    }),
-            )
-            .child(
-                IconButton::new("status-bar-manage-projects", IconName::FolderOpen)
-                    .icon_size(IconSize::Small)
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(zed_actions::git::Worktree), cx);
-                    })
-                    .tooltip(|window, cx| {
-                        Tooltip::for_action("Manage projects", &zed_actions::git::Worktree, cx)
-                    }),
-            )
-    }
-}
-
-impl StatusItemView for WorkspaceButtons {
-    fn hide_setting(&self, _: &App) -> Option<workspace::HideStatusItem> {
-        None
-    }
-
-    fn set_active_pane_item(
-        &mut self,
-        _: Option<&dyn ItemHandle>,
-        _: &mut Window,
-        _: &mut Context<Self>,
-    ) {
-    }
-}
-
 fn initialize_local_status_bar(
     workspace: &mut Workspace,
     window: &mut Window,
@@ -139,8 +80,6 @@ fn initialize_local_status_bar(
         status_bar.add_left_item(git_blame, window, cx);
         status_bar.add_left_item(merge_conflicts, window, cx);
         status_bar.add_left_item(activity, window, cx);
-        // Keep these first so they end up rightmost, in the bottom-right corner.
-        status_bar.add_right_item(cx.new(|_| WorkspaceButtons), window, cx);
         status_bar.add_right_item(encoding, window, cx);
         status_bar.add_right_item(language, window, cx);
         status_bar.add_right_item(toolchain, window, cx);
