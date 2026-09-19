@@ -257,9 +257,8 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
     // Create a project for the workspace
     let project = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -1045,9 +1044,8 @@ fn run_breakpoint_hover_visual_tests(
     // Create project
     let project = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -1317,9 +1315,8 @@ fn run_settings_ui_subpage_visual_tests(
 
     let project = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -1532,9 +1529,8 @@ import { AiPaneTabContext } from 'context';
     // Create project
     let project = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -2025,9 +2021,8 @@ fn run_agent_thread_view_test(
     // Create a project with the test image
     let project = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -2349,9 +2344,8 @@ fn run_tool_permissions_visual_tests(
 
     let project = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -2555,9 +2549,8 @@ fn run_multi_workspace_sidebar_visual_tests(
     // tries to access the window root (MultiWorkspace) while it's being updated.
     let project1 = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -2571,9 +2564,8 @@ fn run_multi_workspace_sidebar_visual_tests(
 
     let project2 = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
@@ -3330,9 +3322,8 @@ fn create_project_with_worktree(
 ) -> Result<Entity<Project>> {
     let project = cx.update(|cx| {
         project::Project::local(
-            app_state.client.clone(),
+            app_state.http_client.clone(),
             app_state.node_runtime.clone(),
-            app_state.user_store.clone(),
             app_state.languages.clone(),
             app_state.fs.clone(),
             None,
