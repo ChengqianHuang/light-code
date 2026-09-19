@@ -40,6 +40,22 @@ fn local_window_options(_: Option<Uuid>, _: &mut App) -> WindowOptions {
     }
 }
 
+fn load_embedded_fonts(cx: &App) -> anyhow::Result<()> {
+    let asset_source = cx.asset_source();
+    let mut fonts = Vec::new();
+    for font_path in asset_source.list("fonts")? {
+        if !font_path.ends_with(".ttf") {
+            continue;
+        }
+        let font = asset_source
+            .load(&font_path)?
+            .with_context(|| format!("embedded font is missing: {font_path}"))?;
+        fonts.push(font);
+    }
+    cx.text_system().add_fonts(fonts)?;
+    Ok(())
+}
+
 fn initialize_local_workspaces(cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {
@@ -200,6 +216,9 @@ fn main() {
         settings::init(cx);
         zlog_settings::init(cx);
         theme_settings::init(theme::LoadThemes::All(Box::new(Assets)), cx);
+        if let Err(error) = load_embedded_fonts(cx) {
+            eprintln!("failed to load embedded fonts: {error:#}");
+        }
 
         let http_client: Arc<HttpClientWithUrl> = Arc::new(HttpClientWithUrl::new(
             Arc::new(ReqwestClient::new()),
@@ -279,6 +298,7 @@ fn main() {
         editor::init(cx);
         debugger_ui::init(cx);
         debugger_tools::init(cx);
+        sidebar::init(cx);
         workspace::init(app_state.clone(), cx);
         ui_prompt::init(cx);
         title_bar::init(cx);
