@@ -22750,14 +22750,12 @@ name = "zed"
 version = "1.21.0"
 dependencies = [
  "acp_thread",
- "acp_tools",
  "action_log",
  "activity_indicator",
  "agent",
  "agent-client-protocol",
  "agent_servers",
  "agent_settings",
- "agent_skills",
  "agent_ui",
  "anyhow",
  "ashpd",

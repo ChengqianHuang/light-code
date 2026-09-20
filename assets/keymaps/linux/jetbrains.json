@@ -82,7 +82,6 @@
       "ctrl-space": "editor::ShowCompletions",
       "ctrl-q": "editor::Hover",
       "ctrl-p": "editor::ShowSignatureHelp",
-      "ctrl-\\": "assistant::InlineAssist",
       "ctrl-alt-h": "call_hierarchy::ShowIncomingCalls",
     },
   },
@@ -102,7 +101,6 @@
   {
     "context": "AcpThreadSearchBar > Editor",
     "bindings": {
-      "shift-enter": "agent::SelectPreviousThreadMatch",
     },
   },
   {
@@ -203,7 +201,6 @@
     "context": "AgentPanel",
     "bindings": {
       "ctrl-alt-l": null,
-      "shift-alt-l": "agent::OpenRulesLibrary",
     },
   },
   {
