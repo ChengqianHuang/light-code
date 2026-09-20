@@ -5304,6 +5304,62 @@ fn window_and_layout_page() -> SettingsPage {
 }
 
 fn panels_page() -> SettingsPage {
+    fn project_sidebar_section() -> [SettingsPageItem; 3] {
+        [
+            SettingsPageItem::SectionHeader("Project Sidebar"),
+            SettingsPageItem::SettingItem(SettingItem {
+                title: "Project Sidebar Enabled",
+                description: "Show the sidebar that manages multiple projects in the current window.",
+                field: Box::new(SettingField {
+                    organization_override: None,
+                    json_path: Some("project_sidebar.enabled"),
+                    pick: |settings_content| {
+                        settings_content
+                            .workspace
+                            .project_sidebar
+                            .as_ref()?
+                            .enabled
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .workspace
+                            .project_sidebar
+                            .get_or_insert_default()
+                            .enabled = value;
+                    },
+                }),
+                metadata: None,
+                files: USER,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                title: "Project Sidebar Side",
+                description: "Which side of the window contains the multi-project sidebar.",
+                field: Box::new(SettingField {
+                    organization_override: None,
+                    json_path: Some("project_sidebar.side"),
+                    pick: |settings_content| {
+                        settings_content
+                            .workspace
+                            .project_sidebar
+                            .as_ref()?
+                            .side
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .workspace
+                            .project_sidebar
+                            .get_or_insert_default()
+                            .side = value;
+                    },
+                }),
+                metadata: None,
+                files: USER,
+            }),
+        ]
+    }
+
     fn project_panel_section() -> [SettingsPageItem; 30] {
         [
             SettingsPageItem::SectionHeader("Project Panel"),
@@ -6936,6 +6992,7 @@ fn panels_page() -> SettingsPage {
     SettingsPage {
         title: "Panels",
         items: concat_sections![
+            project_sidebar_section(),
             project_panel_section(),
             terminal_panel_section(),
             outline_panel_section(),

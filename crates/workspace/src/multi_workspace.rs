@@ -6,11 +6,11 @@ use gpui::{
     ManagedView, MouseButton, Pixels, Render, Subscription, Task, TaskExt, WeakEntity, Window,
     WindowId, actions, deferred, px,
 };
+use project::Project;
 pub use project::ProjectGroupKey;
-use project::{DisableAiSettings, Project};
 use remote::RemoteConnectionOptions;
+pub use settings::ProjectSidebarSide as SidebarSide;
 use settings::Settings;
-pub use settings::SidebarSide;
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -19,8 +19,7 @@ use util::ResultExt;
 use util::path_list::PathList;
 use zed_actions::agents_sidebar::ToggleThreadSwitcher;
 
-use agent_settings::AgentSettings;
-use settings::SidebarDockPosition;
+use settings::ProjectSidebarDockPosition;
 use ui::{ContextMenu, right_click_menu};
 
 const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
@@ -70,32 +69,33 @@ pub fn sidebar_side_context_menu(
     id: impl Into<ElementId>,
     cx: &App,
 ) -> ui::RightClickMenu<ContextMenu> {
-    let current_position = AgentSettings::get_global(cx).sidebar_side;
+    let current_position = crate::WorkspaceSettings::get_global(cx).project_sidebar_side;
     right_click_menu(id).menu(move |window, cx| {
         let fs = <dyn fs::Fs>::global(cx);
         ContextMenu::build(window, cx, move |mut menu, _, _cx| {
-            let positions: [(SidebarDockPosition, &str); 2] = [
-                (SidebarDockPosition::Left, "Left"),
-                (SidebarDockPosition::Right, "Right"),
+            let positions: [(ProjectSidebarDockPosition, &str); 2] = [
+                (ProjectSidebarDockPosition::Left, "Left"),
+                (ProjectSidebarDockPosition::Right, "Right"),
             ];
             for (position, label) in positions {
                 let fs = fs.clone();
                 menu = menu.toggleable_entry(
                     label,
-                    position == current_position,
+                    SidebarSide::from(position) == current_position,
                     IconPosition::Start,
                     None,
                     move |_window, cx| {
                         let side = match position {
-                            SidebarDockPosition::Left => "left",
-                            SidebarDockPosition::Right => "right",
+                            ProjectSidebarDockPosition::Left => "left",
+                            ProjectSidebarDockPosition::Right => "right",
                         };
                         telemetry::event!("Sidebar Side Changed", side = side);
                         settings::update_settings_file(fs.clone(), cx, move |settings, _cx| {
                             settings
-                                .agent
+                                .workspace
+                                .project_sidebar
                                 .get_or_insert_default()
-                                .set_sidebar_side(position);
+                                .set_side(position);
                         });
                     },
                 );
@@ -326,9 +326,10 @@ impl EventEmitter<MultiWorkspaceEvent> for MultiWorkspace {}
 
 impl MultiWorkspace {
     pub fn sidebar_side(&self, cx: &App) -> SidebarSide {
-        self.sidebar
-            .as_ref()
-            .map_or(SidebarSide::Left, |s| s.side(cx))
+        self.sidebar.as_ref().map_or_else(
+            || crate::WorkspaceSettings::get_global(cx).project_sidebar_side,
+            |sidebar| sidebar.side(cx),
+        )
     }
 
     pub fn sidebar_render_state(&self, cx: &App) -> SidebarRenderState {
@@ -348,9 +349,8 @@ impl MultiWorkspace {
             }
         });
         let settings_subscription = cx.observe_global_in::<settings::SettingsStore>(window, {
-            let mut previous_multi_workspace_enabled = !DisableAiSettings::get_global(cx)
-                .disable_ai
-                && AgentSettings::get_global(cx).enabled;
+            let mut previous_multi_workspace_enabled =
+                crate::WorkspaceSettings::get_global(cx).project_sidebar_enabled;
             move |this, window, cx| {
                 let multi_workspace_enabled = this.multi_workspace_enabled(cx);
                 if previous_multi_workspace_enabled && !multi_workspace_enabled {
@@ -424,7 +424,7 @@ impl MultiWorkspace {
     }
 
     pub fn multi_workspace_enabled(&self, cx: &App) -> bool {
-        !DisableAiSettings::get_global(cx).disable_ai && AgentSettings::get_global(cx).enabled
+        crate::WorkspaceSettings::get_global(cx).project_sidebar_enabled
     }
 
     pub fn toggle_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {

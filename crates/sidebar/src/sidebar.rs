@@ -68,7 +68,8 @@ use workspace::{
     CloseWindow, FocusWorkspaceSidebar, MoveProjectDown, MoveProjectUp, MultiWorkspace,
     MultiWorkspaceEvent, NextProject, NextThread, Open, OpenMode, PreviousProject, PreviousThread,
     ProjectGroupKey, RemovalIntent, SaveIntent, Sidebar as WorkspaceSidebar, SidebarSide, Toast,
-    ToggleWorkspaceSidebar, Workspace, notifications::NotificationId, sidebar_side_context_menu,
+    ToggleWorkspaceSidebar, Workspace, WorkspaceSettings, notifications::NotificationId,
+    sidebar_side_context_menu,
 };
 
 use git_ui_core::worktree_service::{RemoteBranchName, worktree_create_targets};
@@ -7288,7 +7289,7 @@ impl Sidebar {
             KeyBinding::for_action(&workspace::Open::default(), cx),
         )
         .on_open_project(|_, window, cx| {
-            let side = match AgentSettings::get_global(cx).sidebar_side() {
+            let side = match WorkspaceSettings::get_global(cx).project_sidebar_side {
                 SidebarSide::Left => "left",
                 SidebarSide::Right => "right",
             };
@@ -7399,7 +7400,8 @@ impl Sidebar {
     }
 
     fn render_sidebar_toggle_button(&self, _cx: &mut Context<Self>) -> impl IntoElement {
-        let on_right = AgentSettings::get_global(_cx).sidebar_side() == SidebarSide::Right;
+        let on_right =
+            WorkspaceSettings::get_global(_cx).project_sidebar_side == SidebarSide::Right;
 
         sidebar_side_context_menu("sidebar-toggle-menu", _cx)
             .anchor(if on_right {
@@ -7805,7 +7807,7 @@ impl WorkspaceSidebar for Sidebar {
     }
 
     fn side(&self, cx: &App) -> SidebarSide {
-        AgentSettings::get_global(cx).sidebar_side()
+        WorkspaceSettings::get_global(cx).project_sidebar_side
     }
 
     fn prepare_for_focus(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
