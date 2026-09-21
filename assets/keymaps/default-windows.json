@@ -541,9 +541,6 @@
       // "ctrl-alt-o": ["projects::OpenRecent", { "create_new_window": true }],
       "f11": "zed::ToggleFullScreen",
       "ctrl-r": "projects::OpenRecent",
-      // Change to open path modal for existing remote connection by setting the parameter
-      // "ctrl-shift-alt-o": ["projects::OpenRemote", { "from_existing_connection": true }],
-      "ctrl-shift-alt-o": ["projects::OpenRemote", { "from_existing_connection": false }],
       "shift-alt-b": "branches::OpenRecent",
       "shift-alt-w": "git::Worktree",
       "shift-alt-enter": "toast::RunAction",
@@ -1534,26 +1531,6 @@
     "bindings": {
       "tab": "git_graph::FocusNextTabStop",
       "shift-tab": "git_graph::FocusPreviousTabStop",
-    },
-  },
-  {
-    "context": "SkillCreator",
-    "use_key_equivalents": true,
-    "bindings": {
-      "ctrl-w": "workspace::CloseWindow",
-      "ctrl-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
-    },
-  },
-  {
-    "context": "SkillCreator > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "ctrl-w": "workspace::CloseWindow",
-      "ctrl-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
     },
   },
 ]

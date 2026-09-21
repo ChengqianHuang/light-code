@@ -8,7 +8,6 @@ pub(crate) mod move_to_applications;
 mod open_listener;
 mod open_url_modal;
 mod quick_action_bar;
-pub mod remote_debug;
 pub mod telemetry_log;
 #[cfg(all(target_os = "macos", feature = "visual-tests"))]
 pub mod visual_tests;
@@ -58,12 +57,11 @@ use paths::{
     local_tasks_file_relative_path,
 };
 use project::{
-    DirectoryLister, ProjectItem,
+    ProjectItem,
     project_settings::{SettingsObserver, SettingsObserverEvent},
 };
 use project_panel::ProjectPanel;
 use quick_action_bar::QuickActionBar;
-use recent_projects::open_remote_project;
 use release_channel::{AppCommitSha, AppVersion, ReleaseChannel};
 use rope::Rope;
 use search::project_search::ProjectSearchBar;
@@ -981,54 +979,6 @@ fn register_actions(
                 window,
                 cx,
             );
-        })
-        .register_action(|workspace, action: &zed_actions::OpenRemote, window, cx| {
-            if !action.from_existing_connection {
-                cx.propagate();
-                return;
-            }
-            // You need existing remote connection to open it this way
-            if workspace.project().read(cx).is_local() {
-                return;
-            }
-            let create_new_window = action.create_new_window.unwrap_or_else(|| {
-                matches!(
-                    WorkspaceSettings::get_global(cx).default_open_behavior,
-                    DefaultOpenBehavior::NewWindow
-                )
-            });
-            telemetry::event!("Project Opened");
-            let paths = workspace.prompt_for_open_path(
-                PathPromptOptions {
-                    files: true,
-                    directories: true,
-                    multiple: true,
-                    prompt: None,
-                },
-                DirectoryLister::Project(workspace.project().clone()),
-                window,
-                cx,
-            );
-            cx.spawn_in(window, async move |this, cx| {
-                let Some(paths) = paths.await.log_err().flatten() else {
-                    return;
-                };
-                if let Some(task) = this
-                    .update_in(cx, |this, window, cx| {
-                        open_new_ssh_project_from_project(
-                            this,
-                            paths,
-                            create_new_window,
-                            window,
-                            cx,
-                        )
-                    })
-                    .log_err()
-                {
-                    task.await.log_err();
-                }
-            })
-            .detach()
         })
         .register_action({
             let fs = app_state.fs.clone();
@@ -2248,40 +2198,6 @@ fn initialize_new_window(
     workspace.add_item_to_active_pane(Box::new(editor), None, true, window, cx);
 }
 
-pub fn open_new_ssh_project_from_project(
-    workspace: &mut Workspace,
-    paths: Vec<PathBuf>,
-    create_new_window: bool,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) -> Task<anyhow::Result<()>> {
-    let app_state = workspace.app_state().clone();
-    let Some(ssh_client) = workspace.project().read(cx).remote_client() else {
-        return Task::ready(Err(anyhow::anyhow!("Not an ssh project")));
-    };
-    let connection_options = ssh_client.read(cx).connection_options();
-    let requesting_window = if create_new_window {
-        None
-    } else {
-        window.window_handle().downcast::<MultiWorkspace>()
-    };
-    cx.spawn_in(window, async move |_, cx| {
-        open_remote_project(
-            connection_options,
-            paths,
-            app_state,
-            workspace::OpenOptions {
-                workspace_matching: workspace::WorkspaceMatching::None,
-                requesting_window,
-                ..Default::default()
-            },
-            cx,
-        )
-        .await
-        .map(|_| ())
-    })
-}
-
 fn open_project_settings_file(
     workspace: &mut Workspace,
     _: &OpenProjectSettingsFile,
@@ -2686,20 +2602,14 @@ mod tests {
     use editor::{
         DisplayPoint, Editor, MultiBufferOffset, SelectionEffects, display_map::DisplayRow,
     };
-    use extension::ExtensionHostProxy;
-    use fs::FakeFs;
     use gpui::{
         Action, AnyWindowHandle, App, AssetSource, BorrowAppContext, Modifiers, OwnedMenuItem,
         TestAppContext, UpdateGlobal, VisualTestContext, WindowHandle, actions, point, px,
     };
-    use http_client::BlockedHttpClient;
     use language::LanguageRegistry;
     use languages::{markdown_lang, rust_lang};
-    use node_runtime::NodeRuntime;
     use pretty_assertions::{assert_eq, assert_ne};
     use project::{Project, ProjectPath};
-    use remote::RemoteClient;
-    use remote_server::{HeadlessAppState, HeadlessProject};
     use semver::Version;
     use serde_json::json;
     use settings::{SaturatingBool, SettingsStore, SplicingVec, watch_config_file};
@@ -2859,116 +2769,6 @@ mod tests {
                 });
             })
             .unwrap();
-    }
-
-    #[gpui::test]
-    async fn test_open_remote_from_existing_connection_reuses_window(
-        cx: &mut TestAppContext,
-        server_cx: &mut TestAppContext,
-    ) {
-        let app_state = init_test(cx);
-        let executor = cx.executor();
-
-        server_cx.update(|cx| {
-            release_channel::init(Version::new(0, 0, 0), cx);
-        });
-
-        let (connection_options, server_session, connect_guard) =
-            RemoteClient::fake_server(cx, server_cx);
-        let remote_fs = FakeFs::new(server_cx.executor());
-        remote_fs
-            .insert_tree(
-                path!("/"),
-                json!({
-                    "project": {},
-                    "other-project": {},
-                }),
-            )
-            .await;
-
-        server_cx.update(HeadlessProject::init);
-        let http_client = Arc::new(BlockedHttpClient);
-        let node_runtime = NodeRuntime::unavailable();
-        let languages = Arc::new(LanguageRegistry::new(server_cx.executor()));
-        let extension_host_proxy = Arc::new(ExtensionHostProxy::new());
-        let _headless = server_cx.new(|cx| {
-            HeadlessProject::new(
-                HeadlessAppState {
-                    session: server_session,
-                    fs: remote_fs,
-                    http_client,
-                    node_runtime,
-                    languages,
-                    extension_host_proxy,
-                    startup_time: std::time::Instant::now(),
-                },
-                false,
-                cx,
-            )
-        });
-        drop(connect_guard);
-
-        let mut async_cx = cx.to_async();
-        open_remote_project(
-            connection_options,
-            vec![PathBuf::from(path!("/project"))],
-            app_state,
-            OpenOptions::default(),
-            &mut async_cx,
-        )
-        .await
-        .expect("opening the initial remote project should succeed");
-        executor.run_until_parked();
-
-        assert_eq!(cx.update(|cx| cx.windows().len()), 1);
-        let window = cx.update(|cx| cx.windows()[0].downcast::<MultiWorkspace>().unwrap());
-
-        window
-            .update(cx, |multi_workspace, _, cx| {
-                let workspace = multi_workspace.workspace().clone();
-                workspace.update(cx, |workspace, cx| {
-                    let remote_client = workspace
-                        .project()
-                        .read(cx)
-                        .remote_client()
-                        .expect("initial project should have a remote client");
-                    remote_client.update(cx, |remote_client, cx| {
-                        remote_client.force_server_not_running(cx);
-                    });
-                });
-            })
-            .unwrap();
-        executor.run_until_parked();
-
-        window
-            .update(cx, |multi_workspace, window, cx| {
-                multi_workspace.workspace().update(cx, |workspace, _cx| {
-                    workspace.set_prompt_for_open_path(Box::new(|_, _, _, _| {
-                        let (sender, receiver) = futures::channel::oneshot::channel();
-                        sender
-                            .send(Some(vec![PathBuf::from(path!("/other-project"))]))
-                            .expect("path prompt receiver should be open");
-                        receiver
-                    }));
-                });
-                window.dispatch_action(
-                    Box::new(zed_actions::OpenRemote {
-                        from_existing_connection: true,
-                        create_new_window: Some(false),
-                    }),
-                    cx,
-                );
-            })
-            .unwrap();
-        executor.run_until_parked();
-
-        assert_eq!(
-            cx.update(|cx| cx.windows().len()),
-            1,
-            "create_new_window: false should reuse the current window"
-        );
-        cx.simulate_prompt_answer("Cancel");
-        executor.run_until_parked();
     }
 
     #[gpui::test]
@@ -5744,7 +5544,6 @@ mod tests {
                 "highlights_tree_view",
                 "icon_theme_selector",
                 "image_viewer",
-                "inline_assistant",
                 "journal",
                 "keymap_editor",
                 "keystroke_input",
@@ -5773,7 +5572,6 @@ mod tests {
                 "search",
                 "settings_editor",
                 "settings_profile_selector",
-                "skill_creator",
                 "snippets",
                 "stash_picker",
                 "svg",

@@ -92,7 +92,6 @@ db.workspace = true
 debug_adapter_extension.workspace = true
 debugger_tools.workspace = true
 debugger_ui.workspace = true
-dev_container.workspace = true
 diagnostics.workspace = true
 editor.workspace = true
 encoding_selector.workspace = true
@@ -257,7 +256,6 @@ language = { workspace = true, features = ["test-support"] }
 pretty_assertions.workspace = true
 project = { workspace = true, features = ["test-support"] }
 remote = { workspace = true, features = ["test-support"] }
-remote_server = { workspace = true, features = ["test-support"] }
 semver.workspace = true
 terminal_view = { workspace = true, features = ["test-support"] }
 title_bar = { workspace = true, features = ["test-support"] }

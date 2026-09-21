@@ -607,8 +607,6 @@
       // "alt-cmd-o": ["projects::OpenRecent", {"create_new_window": true }],
       "alt-cmd-o": "projects::OpenRecent",
       "ctrl-r": "projects::OpenRecent",
-      "ctrl-cmd-o": ["projects::OpenRemote", { "from_existing_connection": false }],
-      "ctrl-cmd-shift-o": ["projects::OpenRemote", { "from_existing_connection": true }],
       "cmd-ctrl-b": "branches::OpenRecent",
       "cmd-ctrl-w": "git::Worktree",
       "ctrl-~": "workspace::NewTerminal",
@@ -1614,26 +1612,6 @@
     "bindings": {
       "tab": "git_graph::FocusNextTabStop",
       "shift-tab": "git_graph::FocusPreviousTabStop",
-    },
-  },
-  {
-    "context": "SkillCreator",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-w": "workspace::CloseWindow",
-      "cmd-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
-    },
-  },
-  {
-    "context": "SkillCreator > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-w": "workspace::CloseWindow",
-      "cmd-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
     },
   },
 ]

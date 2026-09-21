@@ -1278,18 +1278,4 @@
       "enter": "editor::Newline",
     },
   },
-  {
-    "context": "SkillCreator",
-    "bindings": {
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
-    },
-  },
-  {
-    "context": "SkillCreator > Editor",
-    "bindings": {
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
-    },
-  },
 ]

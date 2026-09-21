@@ -1,4 +1,3 @@
-mod dev_container_suggest;
 pub mod disconnected_overlay;
 mod remote_connections;
 mod remote_servers;
@@ -38,7 +37,6 @@ pub use remote_servers::RemoteServerProjects;
 use settings::{DefaultOpenBehavior, Settings, WorktreeId};
 use workspace::ProjectGroupKey;
 
-use dev_container::{DevContainerContext, find_devcontainer_configs};
 use ui::{
     ButtonLike, ContextMenu, Divider, HighlightedLabel, KeyBinding, ListItem, ListItemSpacing,
     ListSubHeader, PopoverMenu, PopoverMenuHandle, TintColor, Tooltip, prelude::*,
@@ -49,7 +47,7 @@ use workspace::{
     SerializedWorkspaceLocation, Workspace, WorkspaceDb, WorkspaceId,
     notifications::DetachAndPromptErr, with_active_or_new_workspace,
 };
-use zed_actions::{OpenDevContainer, OpenRecent, OpenRemote};
+use zed_actions::OpenRecent;
 
 actions!(
     recent_projects,
@@ -483,96 +481,7 @@ pub fn init(cx: &mut App) {
             }
         }
     });
-    cx.on_action(|open_remote: &OpenRemote, cx| {
-        let from_existing_connection = open_remote.from_existing_connection;
-        let create_new_window = open_remote
-            .create_new_window
-            .unwrap_or_else(|| default_open_in_new_window(cx));
-        with_active_or_new_workspace(cx, move |workspace, window, cx| {
-            if from_existing_connection {
-                cx.propagate();
-                return;
-            }
-            let handle = cx.entity().downgrade();
-            let fs = workspace.project().read(cx).fs().clone();
-            workspace.toggle_modal(window, cx, |window, cx| {
-                RemoteServerProjects::new(create_new_window, fs, window, handle, cx)
-            })
-        });
-    });
-
     cx.observe_new(DisconnectedOverlay::register).detach();
-
-    cx.on_action(|_: &OpenDevContainer, cx| {
-        with_active_or_new_workspace(cx, move |workspace, window, cx| {
-            if !workspace.project().read(cx).is_local() {
-                cx.spawn_in(window, async move |_, cx| {
-                    cx.prompt(
-                        gpui::PromptLevel::Critical,
-                        "Cannot open Dev Container from remote project",
-                        None,
-                        &["OK"],
-                    )
-                    .await
-                    .ok();
-                })
-                .detach();
-                return;
-            }
-
-            let fs = workspace.project().read(cx).fs().clone();
-            let configs = find_devcontainer_configs(workspace, cx);
-            let app_state = workspace.app_state().clone();
-            let dev_container_context = DevContainerContext::from_workspace(workspace, cx);
-            let handle = cx.entity().downgrade();
-            workspace.toggle_modal(window, cx, |window, cx| {
-                RemoteServerProjects::new_dev_container(
-                    fs,
-                    configs,
-                    app_state,
-                    dev_container_context,
-                    window,
-                    handle,
-                    cx,
-                )
-            });
-        });
-    });
-
-    // Subscribe to worktree additions to suggest opening the project in a dev container
-    cx.observe_new(
-        |workspace: &mut Workspace, window: Option<&mut Window>, cx: &mut Context<Workspace>| {
-            let Some(window) = window else {
-                return;
-            };
-            // A workspace opened with `--dev-container` has its worktrees scanning
-            // before this observer runs, so their update events can't be relied on
-            // to trigger the auto-open.
-            if workspace.open_in_dev_container() {
-                dev_container_suggest::open_dev_container_from_cli(workspace, window, cx);
-            }
-            cx.subscribe_in(
-                workspace.project(),
-                window,
-                move |workspace, project, event, window, cx| {
-                    if let project::Event::WorktreeUpdatedEntries(worktree_id, updated_entries) =
-                        event
-                    {
-                        dev_container_suggest::suggest_on_worktree_updated(
-                            workspace,
-                            *worktree_id,
-                            updated_entries,
-                            project,
-                            window,
-                            cx,
-                        );
-                    }
-                },
-            )
-            .detach();
-        },
-    )
-    .detach();
 }
 
 #[cfg(target_os = "windows")]
@@ -877,8 +786,14 @@ impl RecentProjectsDelegate {
         let render_paths = style == ProjectPickerStyle::Modal;
         Self {
             workspace,
-            open_folders,
-            window_project_groups,
+            open_folders: open_folders
+                .into_iter()
+                .filter(|folder| folder.connection_options.is_none())
+                .collect(),
+            window_project_groups: window_project_groups
+                .into_iter()
+                .filter(|key| key.host().is_none())
+                .collect(),
             workspaces: Vec::new(),
             filtered_entries: Vec::new(),
             selected_index: 0,
@@ -892,7 +807,10 @@ impl RecentProjectsDelegate {
     }
 
     pub fn set_workspaces(&mut self, workspaces: Vec<RecentWorkspace>) {
-        self.workspaces = workspaces;
+        self.workspaces = workspaces
+            .into_iter()
+            .filter(|workspace| matches!(workspace.location, SerializedWorkspaceLocation::Local))
+            .collect();
     }
 
     fn filtered_entries_include_remote_project(&self) -> bool {
@@ -1722,36 +1640,6 @@ impl PickerDelegate for RecentProjectsDelegate {
                                 }
                             })
                     })
-                    .child(
-                        ButtonLike::new("open_remote_folder")
-                            .child(
-                                h_flex()
-                                    .w_full()
-                                    .gap_1()
-                                    .justify_between()
-                                    .child(Label::new("Open Remote Folder"))
-                                    .child(KeyBinding::for_action(
-                                        &OpenRemote {
-                                            from_existing_connection: false,
-                                            create_new_window: Some(self.create_new_window),
-                                        },
-                                        cx,
-                                    )),
-                            )
-                            .on_click({
-                                let create_new_window = self.create_new_window;
-                                move |_, window, cx| {
-                                    window.dispatch_action(
-                                        OpenRemote {
-                                            from_existing_connection: false,
-                                            create_new_window: Some(create_new_window),
-                                        }
-                                        .boxed_clone(),
-                                        cx,
-                                    )
-                                }
-                            }),
-                    )
                     .into_any(),
             );
         }
@@ -1970,14 +1858,6 @@ impl PickerDelegate for RecentProjectsDelegate {
                                                         );
                                                     }
                                                 },
-                                            )
-                                            .action(
-                                                "Open Remote Folder",
-                                                OpenRemote {
-                                                    from_existing_connection: false,
-                                                    create_new_window: Some(create_new_window),
-                                                }
-                                                .boxed_clone(),
                                             )
                                     }
                                 }))
@@ -2669,10 +2549,10 @@ mod tests {
     }
 
     #[gpui::test]
-    fn this_window_project_icons_use_each_project_group_host(cx: &mut TestAppContext) {
+    fn remote_project_groups_are_hidden(cx: &mut TestAppContext) {
         init_test(cx);
 
-        let mut delegate = RecentProjectsDelegate::new(
+        let delegate = RecentProjectsDelegate::new(
             WeakEntity::new_invalid(),
             false,
             cx.update(|cx| cx.focus_handle()),
@@ -2680,32 +2560,8 @@ mod tests {
             vec![project_group(0), remote_project_group(1)],
             ProjectPickerStyle::Modal,
         );
-        delegate.filtered_entries = vec![
-            ProjectPickerEntry::ProjectGroup(StringMatch {
-                candidate_id: 0,
-                score: 0.0,
-                positions: Vec::new(),
-                string: Default::default(),
-            }),
-            ProjectPickerEntry::ProjectGroup(StringMatch {
-                candidate_id: 1,
-                score: 0.0,
-                positions: Vec::new(),
-                string: Default::default(),
-            }),
-        ];
 
-        assert!(!delegate.entry_is_remote_project(&delegate.filtered_entries[0]));
-        assert!(delegate.entry_is_remote_project(&delegate.filtered_entries[1]));
-        assert!(delegate.filtered_entries_include_remote_project());
-        assert_eq!(
-            icon_for_project_group(&delegate.window_project_groups[0]),
-            IconName::Screen
-        );
-        assert_eq!(
-            icon_for_project_group(&delegate.window_project_groups[1]),
-            IconName::Server
-        );
+        assert_eq!(delegate.window_project_groups, vec![project_group(0)]);
     }
 
     #[gpui::test]
@@ -2810,128 +2666,6 @@ mod tests {
 
         draw(cx);
         assert_pinned_to_bottom(&picker, cx, "after redraw");
-    }
-
-    #[gpui::test]
-    async fn test_open_dev_container_action_with_single_config(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-
-        app_state
-            .fs
-            .as_fake()
-            .insert_tree(
-                path!("/project"),
-                json!({
-                    ".devcontainer": {
-                        "devcontainer.json": "{}"
-                    },
-                    "src": {
-                        "main.rs": "fn main() {}"
-                    }
-                }),
-            )
-            .await;
-
-        // Open a file path (not a directory) so that the worktree root is a
-        // file. This means `active_project_directory` returns `None`, which
-        // causes `DevContainerContext::from_workspace` to return `None`,
-        // preventing `open_dev_container` from spawning real I/O (docker
-        // commands, shell environment loading) that is incompatible with the
-        // test scheduler. The modal is still created and the re-entrancy
-        // guard that this test validates is still exercised.
-        cx.update(|cx| {
-            open_paths(
-                &[PathBuf::from(path!("/project/src/main.rs"))],
-                app_state,
-                workspace::OpenOptions::default(),
-                cx,
-            )
-        })
-        .await
-        .unwrap();
-
-        assert_eq!(cx.update(|cx| cx.windows().len()), 1);
-        let multi_workspace = cx.update(|cx| cx.windows()[0].downcast::<MultiWorkspace>().unwrap());
-
-        cx.run_until_parked();
-
-        // This dispatch triggers with_active_or_new_workspace -> MultiWorkspace::update
-        // -> Workspace::update -> toggle_modal -> new_dev_container.
-        // Before the fix, this panicked with "cannot read workspace::Workspace while
-        // it is already being updated" because new_dev_container and open_dev_container
-        // tried to read the Workspace entity through a WeakEntity handle while it was
-        // already leased by the outer update.
-        cx.dispatch_action(*multi_workspace, OpenDevContainer);
-
-        multi_workspace
-            .update(cx, |multi_workspace, _, cx| {
-                let modal = multi_workspace
-                    .workspace()
-                    .read(cx)
-                    .active_modal::<RemoteServerProjects>(cx);
-                assert!(
-                    modal.is_some(),
-                    "Dev container modal should be open after dispatching OpenDevContainer"
-                );
-            })
-            .unwrap();
-    }
-
-    #[gpui::test]
-    async fn test_open_dev_container_action_with_multiple_configs(cx: &mut TestAppContext) {
-        let app_state = init_test(cx);
-
-        app_state
-            .fs
-            .as_fake()
-            .insert_tree(
-                path!("/project"),
-                json!({
-                    ".devcontainer": {
-                        "rust": {
-                            "devcontainer.json": "{}"
-                        },
-                        "python": {
-                            "devcontainer.json": "{}"
-                        }
-                    },
-                    "src": {
-                        "main.rs": "fn main() {}"
-                    }
-                }),
-            )
-            .await;
-
-        cx.update(|cx| {
-            open_paths(
-                &[PathBuf::from(path!("/project"))],
-                app_state,
-                workspace::OpenOptions::default(),
-                cx,
-            )
-        })
-        .await
-        .unwrap();
-
-        assert_eq!(cx.update(|cx| cx.windows().len()), 1);
-        let multi_workspace = cx.update(|cx| cx.windows()[0].downcast::<MultiWorkspace>().unwrap());
-
-        cx.run_until_parked();
-
-        cx.dispatch_action(*multi_workspace, OpenDevContainer);
-
-        multi_workspace
-            .update(cx, |multi_workspace, _, cx| {
-                let modal = multi_workspace
-                    .workspace()
-                    .read(cx)
-                    .active_modal::<RemoteServerProjects>(cx);
-                assert!(
-                    modal.is_some(),
-                    "Dev container modal should be open after dispatching OpenDevContainer with multiple configs"
-                );
-            })
-            .unwrap();
     }
 
     #[gpui::test]
@@ -3094,115 +2828,6 @@ mod tests {
             editor::init(cx);
             state
         })
-    }
-
-    #[gpui::test]
-    async fn test_remote_project_group_confirm_does_not_create_local_workspace(
-        cx: &mut TestAppContext,
-    ) {
-        // Regression test: confirming a ProjectGroup entry with a remote host
-        // should call find_or_create_workspace with the host, not
-        // find_or_create_local_workspace.
-        let app_state = init_test(cx);
-        app_state
-            .fs
-            .as_fake()
-            .insert_tree("/local", json!({}))
-            .await;
-
-        cx.update(|cx| {
-            open_paths(
-                &[PathBuf::from("/local")],
-                app_state,
-                workspace::OpenOptions::default(),
-                cx,
-            )
-        })
-        .await
-        .unwrap();
-
-        cx.run_until_parked();
-
-        let mw = cx.update(|cx| cx.windows()[0].downcast::<MultiWorkspace>().unwrap());
-        let remote_key = remote_project_group(1);
-
-        // Get workspace info via WindowHandle::read_with (returns Result)
-        let (workspace, groups, fh) = mw
-            .read_with(cx, |mw, _cx| {
-                let ws = mw.workspace().clone();
-                (
-                    ws.clone(),
-                    mw.project_group_keys(),
-                    ws.read(_cx).focus_handle(_cx),
-                )
-            })
-            .unwrap();
-
-        let mut augmented_groups = groups.clone();
-        augmented_groups.push(remote_key.clone());
-
-        // Create the popover (same as the title bar does)
-        let popover: Entity<RecentProjects> = cx.update(|cx| {
-            let window = cx.windows()[0];
-            window
-                .update(cx, |_, window, cx| {
-                    RecentProjects::popover(
-                        workspace.downgrade(),
-                        augmented_groups,
-                        Some(false),
-                        fh,
-                        window,
-                        cx,
-                    )
-                })
-                .unwrap()
-        });
-
-        cx.run_until_parked();
-
-        // Get the picker from the popover
-        let picker: Entity<Picker<RecentProjectsDelegate>> = cx.update(|cx| {
-            let window = cx.windows()[0];
-            window
-                .update(cx, |_, _window, cx| popover.read(cx).picker.clone())
-                .unwrap()
-        });
-
-        cx.run_until_parked();
-
-        // Find the remote project group entry index via Entity::read_with (no unwrap)
-        let filtered = picker.read_with(cx, |p, _| p.delegate.filtered_entries.clone());
-        let remote_idx = filtered
-            .iter()
-            .position(|entry| {
-                matches!(entry, ProjectPickerEntry::ProjectGroup(m) if m.candidate_id == groups.len())
-            })
-            .expect("remote project group entry should exist");
-
-        // Select and confirm the remote entry via Entity::update
-        let _ = cx.update(|cx| {
-            let window = cx.windows()[0];
-            window.update(cx, |_, window, cx| {
-                picker.update(cx, |picker, cx| {
-                    picker.delegate.set_selected_index(remote_idx, window, cx);
-                    picker.delegate.confirm(false, window, cx);
-                });
-            })
-        });
-
-        cx.run_until_parked();
-
-        // Verify no local workspace was created for the remote paths
-        let has_local = mw
-            .read_with(cx, |mw, cx| {
-                mw.workspace_for_paths(remote_key.path_list(), None, cx)
-                    .is_some()
-            })
-            .unwrap();
-        assert!(
-            !has_local,
-            "remote project group confirm should not create a local workspace"
-        );
     }
 
     #[gpui::test]
