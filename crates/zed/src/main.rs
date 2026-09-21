@@ -18,7 +18,7 @@ const _: () = assert!(
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use cli::FORCE_CLI_MODE_ENV_VAR_NAME;
-use client::{Client, ProxySettings, UserStore, parse_zed_link};
+use client::{Client, ProxySettings, RefreshLlmTokenListener, UserStore, parse_zed_link};
 use collections::HashMap;
 use crashes::InitCrashHandler;
 use db::kvp::{GlobalKeyValueStore, KeyValueStore};
@@ -682,6 +682,11 @@ fn main() {
 
         copilot_ui::init(&app_state, cx);
         language_model::init(cx);
+        RefreshLlmTokenListener::register(
+            app_state.client.clone(),
+            app_state.user_store.clone(),
+            cx,
+        );
         language_models::init(app_state.user_store.clone(), app_state.client.clone(), cx);
         zed::telemetry_log::init(cx);
         edit_prediction_ui::init(cx);
@@ -983,7 +988,10 @@ fn hide_removed_feature_actions(cx: &mut App) {
             TypeId::of::<zed_actions::OpenAccountSettings>(),
             TypeId::of::<zed_actions::OpenRemote>(),
             TypeId::of::<zed_actions::OpenDevContainer>(),
+            TypeId::of::<client::SignIn>(),
             TypeId::of::<client::SignOut>(),
+            TypeId::of::<workspace::FollowNextCollaborator>(),
+            TypeId::of::<workspace::Unfollow>(),
         ]);
 
         #[cfg(any(debug_assertions, target_os = "windows"))]
