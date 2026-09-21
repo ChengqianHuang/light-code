@@ -49,6 +49,7 @@ use session::{AppSession, Session};
 use settings::{BaseKeymap, Settings, SettingsStore, watch_config_file};
 use smol::future::poll_once;
 use std::{
+    any::TypeId,
     cell::RefCell,
     env,
     io::{self, IsTerminal},
@@ -666,6 +667,7 @@ fn main() {
             cx.background_executor().clone(),
         );
         command_palette::init(cx);
+        hide_removed_feature_actions(cx);
         let copilot_chat_configuration = copilot_chat::CopilotChatConfiguration {
             enterprise_uri: language::language_settings::all_language_settings(None, cx)
                 .edit_predictions
@@ -974,6 +976,33 @@ fn main() {
             }
         })
         .detach();
+    });
+}
+
+fn hide_removed_feature_actions(cx: &mut App) {
+    command_palette_hooks::CommandPaletteFilter::update_global(cx, |filter, _| {
+        for namespace in [
+            "acp",
+            "agent",
+            "agents",
+            "agents_sidebar",
+            "assistant",
+            "assistant2",
+            "remote_debug",
+        ] {
+            filter.hide_namespace(namespace);
+        }
+
+        filter.hide_action_types(&[
+            TypeId::of::<zed_actions::OpenRemote>(),
+            TypeId::of::<zed_actions::OpenDevContainer>(),
+        ]);
+
+        #[cfg(any(debug_assertions, target_os = "windows"))]
+        filter.hide_action_types(&[
+            TypeId::of::<zed_actions::wsl_actions::OpenFolderInWsl>(),
+            TypeId::of::<zed_actions::wsl_actions::OpenWsl>(),
+        ]);
     });
 }
 

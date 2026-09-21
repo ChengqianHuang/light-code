@@ -6072,6 +6072,18 @@ mod tests {
     async fn test_removed_agent_keybindings_are_filtered(cx: &mut gpui::TestAppContext) {
         let _app_state = init_keymap_test(cx);
 
+        cx.update(|cx| {
+            command_palette_hooks::init(cx);
+            crate::hide_removed_feature_actions(cx);
+        });
+        cx.update(|cx| {
+            let filter = command_palette_hooks::CommandPaletteFilter::try_global(cx)
+                .expect("command palette filter should be initialized");
+            assert!(filter.is_hidden(&zed_actions::assistant::Toggle));
+            assert!(filter.is_hidden(&zed_actions::OpenRemote::default()));
+            assert!(filter.is_hidden(&zed_actions::OpenDevContainer));
+        });
+
         cx.update(load_default_keymap);
         cx.update(|cx| {
             let keymap = cx.key_bindings();
