@@ -980,8 +980,10 @@ fn hide_removed_feature_actions(cx: &mut App) {
         }
 
         filter.hide_action_types(&[
+            TypeId::of::<zed_actions::OpenAccountSettings>(),
             TypeId::of::<zed_actions::OpenRemote>(),
             TypeId::of::<zed_actions::OpenDevContainer>(),
+            TypeId::of::<client::SignOut>(),
         ]);
 
         #[cfg(any(debug_assertions, target_os = "windows"))]

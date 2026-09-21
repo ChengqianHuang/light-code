@@ -1,6 +1,4 @@
 use crate::multibuffer_hint::MultibufferHint;
-use client::{Client, UserStore, zed_urls};
-use cloud_api_types::Plan;
 use db::kvp::KeyValueStore;
 use fs::Fs;
 use gpui::{
@@ -9,7 +7,6 @@ use gpui::{
     Subscription, Task, WeakEntity, Window, actions,
 };
 use notifications::status_toast::StatusToast;
-use project::agent_server_store::AllAgentServersSettings;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use settings::{SettingsStore, VsCodeSettingsSource};
@@ -25,7 +22,6 @@ use workspace::{
     AppState, Workspace, WorkspaceId,
     dock::DockPosition,
     item::{Item, ItemEvent},
-    notifications::NotifyResultExt as _,
     open_new, register_serializable_item, with_active_or_new_workspace,
 };
 use zed_actions::OpenOnboarding;
@@ -60,10 +56,6 @@ actions!(
     [
         /// Finish the onboarding process.
         Finish,
-        /// Sign in while in the onboarding flow.
-        SignIn,
-        /// Open the user account in zed.dev while in the onboarding flow.
-        OpenAccount,
         /// Resets the welcome screen hints to their initial state.
         ResetHints
     ]
@@ -208,7 +200,6 @@ pub fn show_onboarding_view(app_state: Arc<AppState>, cx: &mut App) -> Task<anyh
 struct Onboarding {
     workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
-    user_store: Entity<UserStore>,
     scroll_handle: ScrollHandle,
     _settings_subscription: Subscription,
 }
@@ -216,42 +207,6 @@ struct Onboarding {
 impl Onboarding {
     fn new(workspace: &Workspace, cx: &mut App) -> Entity<Self> {
         let font_family_cache = theme::FontFamilyCache::global(cx);
-
-        let installed_agents = cx
-            .global::<SettingsStore>()
-            .get::<AllAgentServersSettings>(None)
-            .clone();
-        let client = Client::global(cx);
-        let status = *client.status().borrow();
-        let plan = workspace.user_store().read(cx).plan();
-        let zed_agent_state = if status.is_signed_out()
-            || matches!(
-                status,
-                client::Status::AuthenticationError | client::Status::ConnectionError
-            ) {
-            "signed_out"
-        } else if status.is_signing_in() {
-            "signing_in"
-        } else {
-            match plan {
-                Some(Plan::ZedPro) => "pro",
-                Some(Plan::ZedProTrial) => "trial",
-                Some(Plan::ZedBusiness) => "business",
-                Some(Plan::ZedVip) => "vip",
-                Some(Plan::ZedStudent) => "student",
-                Some(Plan::ZedFree) | None => "free",
-            }
-        };
-        let agents_installed = basics_page::FEATURED_AGENT_IDS
-            .iter()
-            .filter(|id| installed_agents.contains_key(**id))
-            .copied()
-            .collect::<Vec<_>>();
-        telemetry::event!(
-            "Welcome Agent Setup Viewed",
-            zed_agent = zed_agent_state,
-            agents_installed = agents_installed,
-        );
 
         cx.new(|cx| {
             cx.spawn(async move |this, cx| {
@@ -266,7 +221,6 @@ impl Onboarding {
                 workspace: workspace.weak_handle(),
                 focus_handle: cx.focus_handle(),
                 scroll_handle: ScrollHandle::new(),
-                user_store: workspace.user_store().clone(),
                 _settings_subscription: cx
                     .observe_global::<SettingsStore>(move |_, cx| cx.notify()),
             }
@@ -278,26 +232,8 @@ impl Onboarding {
         go_to_welcome_page(cx);
     }
 
-    fn handle_sign_in(&mut self, _: &SignIn, window: &mut Window, cx: &mut Context<Self>) {
-        let client = Client::global(cx);
-        let workspace = self.workspace.clone();
-
-        window
-            .spawn(cx, async move |mut cx| {
-                client
-                    .sign_in_with_optional_connect(true, &cx)
-                    .await
-                    .notify_workspace_async_err(workspace, &mut cx);
-            })
-            .detach();
-    }
-
-    fn handle_open_account(_: &OpenAccount, _: &mut Window, cx: &mut App) {
-        cx.open_url(&zed_urls::account_url(cx))
-    }
-
     fn render_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        crate::basics_page::render_basics_page(&self.user_store, cx).into_any_element()
+        crate::basics_page::render_basics_page(cx).into_any_element()
     }
 }
 
@@ -315,8 +251,6 @@ impl Render for Onboarding {
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .on_action(Self::on_finish)
-            .on_action(cx.listener(Self::handle_sign_in))
-            .on_action(Self::handle_open_account)
             .on_action(cx.listener(|_, _: &menu::SelectNext, window, cx| {
                 window.focus_next(cx);
                 cx.notify();
@@ -420,7 +354,6 @@ impl Item for Onboarding {
     ) -> Task<Option<Entity<Self>>> {
         Task::ready(Some(cx.new(|cx| Onboarding {
             workspace: self.workspace.clone(),
-            user_store: self.user_store.clone(),
             scroll_handle: ScrollHandle::new(),
             focus_handle: cx.focus_handle(),
             _settings_subscription: cx.observe_global::<SettingsStore>(move |_, cx| cx.notify()),

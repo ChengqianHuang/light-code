@@ -1287,8 +1287,6 @@
       "ctrl--": ["zed::DecreaseUiFontSize", { "persist": false }],
       "ctrl-0": ["zed::ResetUiFontSize", { "persist": false }],
       "ctrl-enter": "onboarding::Finish",
-      "alt-shift-l": "onboarding::SignIn",
-      "alt-shift-a": "onboarding::OpenAccount",
     },
   },
   {
