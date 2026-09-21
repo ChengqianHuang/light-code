@@ -1806,8 +1806,8 @@ fn watch_languages(fs: Arc<dyn fs::Fs>, languages: Arc<LanguageRegistry>, cx: &m
     use std::time::Duration;
 
     cx.background_spawn(async move {
-        let languages_src = Path::new("crates/grammars/src");
-        let Some(languages_src) = fs.canonicalize(languages_src).await.log_err() else {
+        let languages_src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../grammars/src");
+        let Some(languages_src) = fs.canonicalize(&languages_src).await.log_err() else {
             return;
         };
 
