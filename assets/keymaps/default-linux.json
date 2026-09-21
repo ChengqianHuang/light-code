@@ -790,19 +790,12 @@
   // Custom bindings
   {
     "bindings": {
-      "ctrl-alt-shift-f": "workspace::FollowNextCollaborator",
       // Only available in debug builds: opens an element inspector for development.
       "ctrl-alt-i": "dev::ToggleInspector",
       // Cycles the frame-time debug overlay between hidden, frame-time-only, and detailed modes.
       "ctrl-alt-shift-p": "dev::ToggleFpsOverlay",
       // Clears the frame-time overlay's statistics, except the total frame count.
       "ctrl-alt-shift-o": "dev::ResetFrameOverlayStats",
-    },
-  },
-  {
-    "context": "!Terminal",
-    "bindings": {
-      "ctrl-shift-c": "collab_panel::ToggleFocus",
     },
   },
   {
@@ -1058,34 +1051,6 @@
     },
   },
   {
-    "context": "CollabPanel && not_editing",
-    "bindings": {
-      "ctrl-backspace": "collab_panel::Remove",
-      "space": "menu::Confirm",
-    },
-  },
-  {
-    "context": "CollabPanel",
-    "bindings": {
-      "alt-up": "collab_panel::MoveChannelUp",
-      "alt-down": "collab_panel::MoveChannelDown",
-      "alt-enter": "collab_panel::OpenSelectedChannelNotes",
-      "shift-enter": "collab_panel::ToggleSelectedChannelFavorite",
-    },
-  },
-  {
-    "context": "(CollabPanel && editing) > Editor",
-    "bindings": {
-      "space": "collab_panel::InsertSpace",
-    },
-  },
-  {
-    "context": "ChannelModal",
-    "bindings": {
-      "tab": "channel_modal::ToggleMode",
-    },
-  },
-  {
     "context": "CallHierarchyPicker > Picker > Editor",
     "bindings": {
       "ctrl-k ctrl-h": "call_hierarchy::ToggleDirection",
@@ -1111,12 +1076,6 @@
     "context": "LspCommandSelector > Picker > Editor",
     "bindings": {
       "tab": "lsp_command_selector::ToggleArgumentsFocus",
-    },
-  },
-  {
-    "context": "ChannelModal > Picker > Editor",
-    "bindings": {
-      "tab": "channel_modal::ToggleMode",
     },
   },
   {

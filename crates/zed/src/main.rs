@@ -970,6 +970,10 @@ fn hide_removed_feature_actions(cx: &mut App) {
             "agents_sidebar",
             "assistant",
             "assistant2",
+            "call",
+            "channel_modal",
+            "collab",
+            "collab_panel",
             "remote_debug",
         ] {
             filter.hide_namespace(namespace);

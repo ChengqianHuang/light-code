@@ -790,20 +790,12 @@
   {
     "use_key_equivalents": true,
     "bindings": {
-      "ctrl-shift-alt-f": "workspace::FollowNextCollaborator",
       // Only available in debug builds: opens an element inspector for development.
       "shift-alt-i": "dev::ToggleInspector",
       // Cycles the frame-time debug overlay between hidden, frame-time-only, and detailed modes.
       "ctrl-alt-shift-p": "dev::ToggleFpsOverlay",
       // Clears the frame-time overlay's statistics, except the total frame count.
       "ctrl-alt-shift-d": "dev::ResetFrameOverlayStats",
-    },
-  },
-  {
-    "context": "!Terminal",
-    "use_key_equivalents": true,
-    "bindings": {
-      "ctrl-shift-c": "collab_panel::ToggleFocus",
     },
   },
   {
@@ -1061,38 +1053,6 @@
     },
   },
   {
-    "context": "CollabPanel && not_editing",
-    "use_key_equivalents": true,
-    "bindings": {
-      "ctrl-backspace": "collab_panel::Remove",
-      "space": "menu::Confirm",
-    },
-  },
-  {
-    "context": "CollabPanel",
-    "use_key_equivalents": true,
-    "bindings": {
-      "alt-up": "collab_panel::MoveChannelUp",
-      "alt-down": "collab_panel::MoveChannelDown",
-      "alt-enter": "collab_panel::OpenSelectedChannelNotes",
-      "shift-enter": "collab_panel::ToggleSelectedChannelFavorite",
-    },
-  },
-  {
-    "context": "(CollabPanel && editing) > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "space": "collab_panel::InsertSpace",
-    },
-  },
-  {
-    "context": "ChannelModal",
-    "use_key_equivalents": true,
-    "bindings": {
-      "tab": "channel_modal::ToggleMode",
-    },
-  },
-  {
     "context": "CallHierarchyPicker > Picker > Editor",
     "use_key_equivalents": true,
     "bindings": {
@@ -1121,13 +1081,6 @@
     "use_key_equivalents": true,
     "bindings": {
       "tab": "lsp_command_selector::ToggleArgumentsFocus",
-    },
-  },
-  {
-    "context": "ChannelModal > Picker > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "tab": "channel_modal::ToggleMode",
     },
   },
   {
