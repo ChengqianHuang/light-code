@@ -560,10 +560,25 @@ impl Client {
         http: Arc<HttpClientWithUrl>,
         cx: &mut App,
     ) -> Arc<Self> {
+        Self::new_with_telemetry_collection(clock, http, true, cx)
+    }
+
+    fn new_with_telemetry_collection(
+        clock: Arc<dyn SystemClock>,
+        http: Arc<HttpClientWithUrl>,
+        collect_telemetry: bool,
+        cx: &mut App,
+    ) -> Arc<Self> {
+        let telemetry = if collect_telemetry {
+            Telemetry::new(clock, http.clone(), cx)
+        } else {
+            Telemetry::new_disabled(clock, http.clone(), cx)
+        };
+
         Arc::new(Self {
             id: AtomicU64::new(0),
             peer: Peer::new(0),
-            telemetry: Telemetry::new(clock, http.clone(), cx),
+            telemetry,
             cloud_client: Arc::new(CloudApiClient::new(http.clone())),
             http,
             credentials_provider: ClientCredentialsProvider::new(cx),
@@ -588,7 +603,7 @@ impl Client {
             &ClientSettings::get_global(cx).server_url,
             cx.http_client().proxy().cloned(),
         ));
-        Self::new(clock, http, cx)
+        Self::new_with_telemetry_collection(clock, http, false, cx)
     }
 
     pub fn id(&self) -> u64 {

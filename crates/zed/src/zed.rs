@@ -8,7 +8,6 @@ pub(crate) mod move_to_applications;
 mod open_listener;
 mod open_url_modal;
 mod quick_action_bar;
-pub mod telemetry_log;
 #[cfg(all(target_os = "macos", feature = "visual-tests"))]
 pub mod visual_tests;
 #[cfg(target_os = "windows")]
@@ -106,10 +105,6 @@ use zed_actions::{
 const DOCS_URL: &str = "https://zed.dev/docs/";
 const STATUS_URL: &str = "https://status.zed.dev";
 const MERCH_URL: &str = "https://merch.zed.dev/";
-
-pub struct CrashHandler(pub Arc<crashes::Client>);
-
-impl gpui::Global for CrashHandler {}
 
 actions!(
     zed,
@@ -460,23 +455,6 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
             .detach();
         }
 
-        cx.spawn_in(window, async move |_this, cx| {
-            const TELEMETRY_INTERVAL: std::time::Duration = std::time::Duration::from_mins(5);
-            loop {
-                cx.background_executor().timer(TELEMETRY_INTERVAL).await;
-                if cx
-                    .update(|window, cx| {
-                        input_latency_ui::report_input_latency_telemetry(window, cx);
-                        input_latency_ui::report_frame_duration_telemetry(window, cx);
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        })
-        .detach();
-
         let multi_workspace_handle = cx.entity().downgrade();
         window.on_window_should_close(cx, move |window, cx| {
             multi_workspace_handle
@@ -534,9 +512,6 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         if let Some(specs) = window.gpu_specs() {
             log::info!("Using GPU: {:?}", specs);
             show_software_emulation_warning_if_needed(specs.clone(), window, cx);
-            if let Some(crash_client) = cx.try_global::<CrashHandler>() {
-                crashes::set_gpu_info(&crash_client.0, specs);
-            }
         }
 
         let edit_prediction_menu_handle = PopoverMenuHandle::default();
@@ -1288,9 +1263,6 @@ fn initialize_pane(
             toolbar.add_item(lsp_log_item, window, cx);
             let dap_log_item = cx.new(|_| debugger_tools::DapLogToolbarItemView::new());
             toolbar.add_item(dap_log_item, window, cx);
-            let telemetry_log_item =
-                cx.new(|cx| telemetry_log::TelemetryLogToolbarItemView::new(window, cx));
-            toolbar.add_item(telemetry_log_item, window, cx);
             let syntax_tree_item = cx.new(|_| language_tools::SyntaxTreeToolbarItemView::new());
             toolbar.add_item(syntax_tree_item, window, cx);
             let migration_banner =

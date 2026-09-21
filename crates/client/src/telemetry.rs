@@ -188,8 +188,31 @@ impl Telemetry {
         client: Arc<HttpClientWithUrl>,
         cx: &mut App,
     ) -> Arc<Self> {
+        Self::new_with_collection(clock, client, true, cx)
+    }
+
+    pub fn new_disabled(
+        clock: Arc<dyn SystemClock>,
+        client: Arc<HttpClientWithUrl>,
+        cx: &mut App,
+    ) -> Arc<Self> {
+        Self::new_with_collection(clock, client, false, cx)
+    }
+
+    fn new_with_collection(
+        clock: Arc<dyn SystemClock>,
+        client: Arc<HttpClientWithUrl>,
+        collect_telemetry: bool,
+        cx: &mut App,
+    ) -> Arc<Self> {
+        let mut settings = *TelemetrySettings::get_global(cx);
+        if !collect_telemetry {
+            settings.diagnostics = false;
+            settings.metrics = false;
+        }
+
         let state = Arc::new(Mutex::new(TelemetryState {
-            settings: *TelemetrySettings::get_global(cx),
+            settings,
             architecture: env::consts::ARCH,
             release_channel: ReleaseChannel::try_global(cx),
             system_id: None,
@@ -211,24 +234,31 @@ impl Telemetry {
             subscribers: Vec::new(),
         }));
 
-        cx.background_spawn({
-            let state = state.clone();
-            let os_version = os_version();
-            state.lock().os_version = Some(os_version);
-            async move {
-                if let Some(tempfile) = File::create(Self::log_file_path()).ok() {
-                    state.lock().log_file = Some(tempfile);
+        if collect_telemetry {
+            cx.background_spawn({
+                let state = state.clone();
+                let os_version = os_version();
+                state.lock().os_version = Some(os_version);
+                async move {
+                    if let Some(tempfile) = File::create(Self::log_file_path()).ok() {
+                        state.lock().log_file = Some(tempfile);
+                    }
                 }
-            }
-        })
-        .detach();
+            })
+            .detach();
+        }
 
         cx.observe_global::<SettingsStore>({
             let state = state.clone();
 
             move |cx| {
                 let mut state = state.lock();
-                state.settings = *TelemetrySettings::get_global(cx);
+                let mut settings = *TelemetrySettings::get_global(cx);
+                if !collect_telemetry {
+                    settings.diagnostics = false;
+                    settings.metrics = false;
+                }
+                state.settings = settings;
             }
         })
         .detach();
@@ -1061,7 +1091,13 @@ mod tests {
 
     fn init_test(cx: &mut TestAppContext) {
         cx.update(|cx| {
-            let settings_store = SettingsStore::test(cx);
+            let mut settings_store = SettingsStore::test(cx);
+            assert!(
+                settings_store
+                    .set_user_settings(r#"{"telemetry":{"metrics":true}}"#, cx)
+                    .result()
+                    .is_ok()
+            );
             cx.set_global(settings_store);
         });
     }

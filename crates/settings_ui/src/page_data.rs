@@ -417,50 +417,9 @@ fn general_page(cx: &App) -> SettingsPage {
         ]
     }
 
-    fn privacy_section() -> [SettingsPageItem; 4] {
+    fn privacy_section() -> [SettingsPageItem; 2] {
         [
             SettingsPageItem::SectionHeader("Privacy"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Telemetry Diagnostics",
-                description: "Send debug information like crash reports.",
-                field: Box::new(SettingField {
-                    organization_override: None,
-                    json_path: Some("telemetry.diagnostics"),
-                    pick: |settings_content| {
-                        settings_content
-                            .telemetry
-                            .as_ref()
-                            .and_then(|telemetry| telemetry.diagnostics.as_ref())
-                    },
-                    write: |settings_content, value, _| {
-                        settings_content
-                            .telemetry
-                            .get_or_insert_default()
-                            .diagnostics = value;
-                    },
-                }),
-                metadata: None,
-                files: USER,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Telemetry Metrics",
-                description: "Send anonymized usage data like what languages you're using Zed with.",
-                field: Box::new(SettingField {
-                    organization_override: None,
-                    json_path: Some("telemetry.metrics"),
-                    pick: |settings_content| {
-                        settings_content
-                            .telemetry
-                            .as_ref()
-                            .and_then(|telemetry| telemetry.metrics.as_ref())
-                    },
-                    write: |settings_content, value, _| {
-                        settings_content.telemetry.get_or_insert_default().metrics = value;
-                    },
-                }),
-                metadata: None,
-                files: USER,
-            }),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Anthropic Data Retention",
                 description: "Allow sending requests to Anthropic models that cannot be offered with Zero Data Retention.",
