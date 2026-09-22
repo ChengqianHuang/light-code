@@ -22740,7 +22740,6 @@ dependencies = [
  "client",
  "clock",
  "codestral",
- "collab_ui",
  "collections",
  "command_palette",
  "command_palette_hooks",
