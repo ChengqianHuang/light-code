@@ -26,8 +26,8 @@ use zed_actions::{
     DecreaseBufferFontSize, IncreaseBufferFontSize, ResetBufferFontSize,
     agent::{
         AddSelectionToThread, ConflictContent, LogoutAgent, OpenSettings, ReauthenticateAgent,
-        ResetAgentZoom, ResetOnboarding, ResolveConflictedFilesWithAgent,
-        ResolveConflictsWithAgent, ReviewBranchDiff, SelectAgent,
+        ResetAgentZoom, ResolveConflictedFilesWithAgent, ResolveConflictsWithAgent,
+        ReviewBranchDiff, SelectAgent,
     },
     assistant::{
         FocusAgent, ManageSkills, OpenGlobalAgentsMdRules, OpenProjectAgentsMdRules, Toggle,
@@ -477,10 +477,6 @@ pub fn init(cx: &mut App) {
                             panel.toggle_new_thread_menu(&ToggleNewThreadMenu, window, cx);
                         });
                     }
-                })
-                .register_action(|_workspace, _: &ResetOnboarding, window, cx| {
-                    window.dispatch_action(workspace::RestoreBanner.boxed_clone(), cx);
-                    window.refresh();
                 })
                 .register_action(|workspace, _: &ResetTrialUpsell, _window, cx| {
                     if let Some(panel) = workspace.panel::<AgentPanel>(cx) {

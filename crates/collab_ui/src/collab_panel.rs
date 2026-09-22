@@ -41,8 +41,8 @@ use ui::{
 };
 use util::{ResultExt, TryFutureExt, maybe};
 use workspace::{
-    AutoWatch, CopyRoomId, Deafen, LeaveCall, MultiWorkspace, Mute, OpenChannelNotes,
-    OpenChannelNotesById, ScreenShare, ShareProject, Workspace,
+    AutoWatch, CopyRoomId, LeaveCall, MultiWorkspace, OpenChannelNotes, OpenChannelNotesById,
+    ScreenShare, ShareProject, Workspace,
     dock::{DockPosition, Panel, PanelEvent},
     notifications::{
         DetachAndPromptErr, Notification as WorkspaceNotification, NotificationId, NotifyResultExt,
@@ -143,10 +143,6 @@ pub fn init(cx: &mut App) {
                 ChannelView::open(channel_id, None, workspace, window, cx).detach_and_log_err(cx)
             });
         });
-        // TODO: make it possible to bind this one to a held key for push to talk?
-        // how to make "toggle_on_modifiers_press" contextual?
-        workspace.register_action(|_, _: &Mute, _, cx| title_bar::collab::toggle_mute(cx));
-        workspace.register_action(|_, _: &Deafen, _, cx| title_bar::collab::toggle_deafen(cx));
         workspace.register_action(|_, _: &LeaveCall, window, cx| {
             CollabPanel::leave_call(window, cx);
         });

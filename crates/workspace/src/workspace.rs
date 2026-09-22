@@ -494,8 +494,6 @@ actions!(
         ClearTrustedWorktrees,
         /// Stops following a collaborator.
         Unfollow,
-        /// Restores the banner.
-        RestoreBanner,
         /// Toggles expansion of the selected item.
         ToggleExpandItem,
     ]
