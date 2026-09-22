@@ -599,10 +599,7 @@ fn main() {
             app_state.user_store.clone(),
             cx,
         );
-        language_models::init(app_state.user_store.clone(), app_state.client.clone(), cx);
         edit_prediction_ui::init(cx);
-        web_search::init(cx);
-        web_search_providers::init(app_state.client.clone(), app_state.user_store.clone(), cx);
         snippet_provider::init(cx);
         edit_prediction_registry::init(app_state.client.clone(), app_state.user_store.clone(), cx);
         repl::init(app_state.fs.clone(), cx);
