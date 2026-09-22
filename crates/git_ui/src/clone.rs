@@ -1,6 +1,7 @@
 use gpui::{App, Context, WeakEntity, Window};
+use notifications::status_toast::StatusToast;
 use std::sync::Arc;
-use ui::SharedString;
+use ui::{Color, Icon, IconName, IconSize, SharedString};
 use util::ResultExt;
 use workspace::{self, Workspace};
 
@@ -46,15 +47,15 @@ pub fn clone_and_open(
             if let Err(error) = clone_task.await {
                 workspace
                     .update(cx, |workspace, cx| {
-                        workspace.show_toast(
-                            workspace::Toast::new(
-                                workspace::notifications::NotificationId::Named(
-                                    "git-clone-failure".into(),
-                                ),
-                                error.to_string(),
-                            ),
-                            cx,
-                        );
+                        let toast = StatusToast::new(error.to_string(), cx, |this, _| {
+                            this.icon(
+                                Icon::new(IconName::XCircle)
+                                    .size(IconSize::Small)
+                                    .color(Color::Error),
+                            )
+                            .dismiss_button(true)
+                        });
+                        workspace.toggle_status_toast(toast, cx);
                     })
                     .log_err();
                 return None;

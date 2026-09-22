@@ -1675,15 +1675,7 @@ mod tests {
         });
     }
 
-    // On macOS the fractional viewport rounding differs just enough that lens
-    // row 60 falls inside the visible range after scrolling to the end, so the
-    // exact expected set below only holds on platforms whose text metrics match
-    // upstream's Linux CI. Verified against the pre-trim upstream code: the
-    // visible geometry (visible_rows=45.3478, scroll_y=67.6522, buffer range
-    // 1310..2189) is bit-identical on this platform both before and after the
-    // trim, so this is platform sensitivity, not a fork regression.
     #[gpui::test]
-    #[cfg_attr(target_os = "macos", ignore = "pixel-boundary: macOS text metrics place lens row 60 just inside the viewport")]
     async fn test_code_lens_resolve_only_visible(cx: &mut TestAppContext) {
         init_test(cx, |_| {});
         update_test_editor_settings(cx, &|settings| {

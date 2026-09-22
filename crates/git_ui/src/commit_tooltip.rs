@@ -13,6 +13,7 @@ use gpui::{
     ScrollHandle, StatefulInteractiveElement, Task, WeakEntity, Window, prelude::*,
 };
 use markdown::{Markdown, MarkdownElement};
+use notifications::status_toast::StatusToast;
 use project::git_store::{Repository, UnshallowState};
 use settings::Settings;
 use std::hash::Hash;
@@ -618,15 +619,18 @@ pub(crate) fn fetch_unshallow(
             match result {
                 Ok(_) => {
                     workspace.update(cx, |workspace, cx| {
-                        workspace.show_toast(
-                            workspace::Toast::new(
-                                workspace::notifications::NotificationId::Named(
-                                    "git-history-fetched".into(),
-                                ),
-                                "Fetched the missing commit history",
-                            ),
+                        let toast = StatusToast::new(
+                            "Fetched the missing commit history",
                             cx,
+                            |this, _| {
+                                this.icon(
+                                    Icon::new(IconName::GitBranch)
+                                        .size(IconSize::Small)
+                                        .color(Color::Muted),
+                                )
+                            },
                         );
+                        workspace.toggle_status_toast(toast, cx);
                     });
                     Ok(())
                 }

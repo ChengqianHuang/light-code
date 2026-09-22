@@ -25,6 +25,7 @@ use gpui::{
 };
 use language::{Language, LanguageConfig, ToOffset as _};
 
+use notifications::status_toast::StatusToast;
 use project::{CompletionDisplayOptions, Project};
 use settings::{
     BaseKeymap, KeybindSource, KeymapFile, Settings as _, SettingsAssets, infer_json_indent_size,
@@ -2890,20 +2891,23 @@ impl KeybindingEditorModal {
                                 action_name,
                                 fallback: keymap.table_interaction_state.read(cx).scroll_offset(),
                             });
+                            let status_toast = StatusToast::new(
+                                format!("Saved edits to the {} action.", humanized_action_name),
+                                cx,
+                                move |this, _cx| {
+                                    this.icon(
+                                        Icon::new(IconName::Check)
+                                            .size(IconSize::Small)
+                                            .color(Color::Success),
+                                    )
+                                    .dismiss_button(true)
+                                    // .action("Undo", f) todo: wire the undo functionality
+                                },
+                            );
+
                             this.workspace
                                 .update(cx, |workspace, cx| {
-                                    workspace.show_toast(
-                                        workspace::Toast::new(
-                                            workspace::notifications::NotificationId::Named(
-                                                "keymap-edit-saved".into(),
-                                            ),
-                                            format!(
-                                                "Saved edits to the {} action.",
-                                                humanized_action_name
-                                            ),
-                                        ),
-                                        cx,
-                                    );
+                                    workspace.toggle_status_toast(status_toast, cx);
                                 })
                                 .log_err();
                         });

@@ -758,6 +758,49 @@ async fn test_dynamic_document_highlight_registration(cx: &mut gpui::TestAppCont
 }
 
 #[gpui::test]
+async fn test_dynamic_registration_sends_metadata_downstream_before_refresh(
+    cx: &mut gpui::TestAppContext,
+) {
+    init_test(cx);
+    let (project, fake_server) =
+        setup_dynamic_registration_test(cx, lsp::ServerCapabilities::default()).await;
+    let downstream = Arc::new(RecordingProtoClient::default());
+    project.update(cx, |project, cx| {
+        project.lsp_store().update(cx, |lsp_store, cx| {
+            lsp_store.shared(1, rpc::AnyProtoClient::new(downstream.clone()), cx);
+        });
+    });
+    cx.executor().run_until_parked();
+    downstream.sent.lock().clear();
+
+    register_capability(
+        &fake_server,
+        "textDocument/documentHighlight",
+        "rust-document-highlight",
+        Some(json!({
+            "documentSelector": [{ "language": "rust", "scheme": "file" }],
+        })),
+    )
+    .await;
+    cx.executor().run_until_parked();
+    assert_eq!(
+        downstream.sent.lock().drain(..).collect::<Vec<_>>(),
+        vec!["UpdateLanguageServer", "RefreshDocumentHighlights"],
+        "expected the capability update to reach guests before the refresh that depends on it",
+    );
+
+    unregister_capabilities(
+        &fake_server,
+        "textDocument/documentHighlight",
+        &["rust-document-highlight"],
+    )
+    .await;
+    cx.executor().run_until_parked();
+    assert_eq!(
+        downstream.sent.lock().drain(..).collect::<Vec<_>>(),
+        vec!["UpdateLanguageServer", "RefreshDocumentHighlights"],
+    );
+}
 
 #[gpui::test]
 async fn test_multi_registration_inlay_hint(cx: &mut gpui::TestAppContext) {
@@ -3203,3 +3246,39 @@ async fn fetch_all_lsp_data(
     labels
 }
 
+#[derive(Default)]
+struct RecordingProtoClient {
+    sent: Mutex<Vec<&'static str>>,
+    handler_set: Mutex<rpc::ProtoMessageHandlerSet>,
+}
+
+impl rpc::ProtoClient for RecordingProtoClient {
+    fn request(
+        &self,
+        _: rpc::proto::Envelope,
+        _: &'static str,
+    ) -> futures::future::BoxFuture<'static, Result<rpc::proto::Envelope>> {
+        unimplemented!()
+    }
+
+    fn send(&self, _: rpc::proto::Envelope, message_type: &'static str) -> Result<()> {
+        self.sent.lock().push(message_type);
+        Ok(())
+    }
+
+    fn send_response(&self, _: rpc::proto::Envelope, _: &'static str) -> Result<()> {
+        Ok(())
+    }
+
+    fn message_handler_set(&self) -> &Mutex<rpc::ProtoMessageHandlerSet> {
+        &self.handler_set
+    }
+
+    fn is_via_collab(&self) -> bool {
+        false
+    }
+
+    fn has_wsl_interop(&self) -> bool {
+        false
+    }
+}

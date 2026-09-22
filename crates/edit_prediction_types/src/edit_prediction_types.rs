@@ -1,9 +1,7 @@
 use std::{ops::Range, sync::Arc, time::Duration};
 
+use client::EditPredictionUsage;
 use gpui::{App, Context, Entity, SharedString};
-
-#[derive(Debug, Clone, Copy)]
-pub struct EditPredictionUsage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditPredictionDiscardReason {

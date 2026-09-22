@@ -1,11 +1,14 @@
 #![allow(clippy::format_collect)]
 
+mod agent_registry_store;
 mod bookmark_store;
 mod color_extractor;
+mod context_server_store;
 mod debugger;
 mod dynamic_registration;
 mod git_store;
 mod image_store;
+mod lsp_command;
 mod lsp_store;
 mod manifest_tree;
 mod project_search;
@@ -59,7 +62,7 @@ use project::{
     Event, TaskContexts,
     git_store::{GitStoreEvent, Repository, RepositoryEvent, StatusEntry, pending_op},
     search::{SearchQuery, SearchResult},
-    task_store::TaskSettingsLocation,
+    task_store::{TaskSettingsLocation, TaskStore},
     *,
 };
 use rand::{Rng as _, rngs::StdRng};
@@ -84,7 +87,7 @@ use std::{
 };
 use sum_tree::SumTree;
 use task::{ResolvedTask, ShellKind, TaskContext};
-use text::{Anchor, PointUtf16, ToOffset, Unclipped};
+use text::{Anchor, PointUtf16, ReplicaId, ToOffset, Unclipped};
 use unindent::Unindent as _;
 use util::{
     RandomCharIter, TryFutureExt as _, assert_set_eq, maybe, path,
@@ -1001,6 +1004,7 @@ async fn test_git_provider_project_setting(cx: &mut gpui::TestAppContext) {
 #[gpui::test]
 async fn test_managing_project_specific_settings(cx: &mut gpui::TestAppContext) {
     init_test(cx);
+    TaskStore::init(None);
 
     let fs = FakeFs::new(cx.executor());
     fs.insert_tree(
@@ -1203,6 +1207,7 @@ async fn test_managing_project_specific_settings(cx: &mut gpui::TestAppContext) 
 #[gpui::test]
 async fn test_invalid_local_tasks_shows_toast_with_doc_link(cx: &mut gpui::TestAppContext) {
     init_test(cx);
+    TaskStore::init(None);
 
     // We need to start with a valid `.zed/tasks.json` file as otherwise the
     // event is emitted before we havd a chance to setup the event subscription.
@@ -1260,6 +1265,7 @@ async fn test_invalid_local_tasks_shows_toast_with_doc_link(cx: &mut gpui::TestA
 #[gpui::test]
 async fn test_fallback_to_single_worktree_tasks(cx: &mut gpui::TestAppContext) {
     init_test(cx);
+    TaskStore::init(None);
 
     let fs = FakeFs::new(cx.executor());
     fs.insert_tree(
@@ -8581,6 +8587,172 @@ async fn test_save_as_existing_file(cx: &mut gpui::TestAppContext) {
 }
 
 #[gpui::test(retries = 5)]
+async fn test_rescan_and_remote_updates(cx: &mut gpui::TestAppContext) {
+    use worktree::WorktreeModelHandle as _;
+
+    init_test(cx);
+    cx.executor().allow_parking();
+
+    let dir = TempTree::new(json!({
+        "a": {
+            "file1": "",
+            "file2": "",
+            "file3": "",
+        },
+        "b": {
+            "c": {
+                "file4": "",
+                "file5": "",
+            }
+        }
+    }));
+
+    let project = Project::test(RealFs::new(None, cx.executor()), [dir.path()], cx).await;
+
+    let buffer_for_path = |path: &'static str, cx: &mut gpui::TestAppContext| {
+        let buffer = project.update(cx, |p, cx| p.open_local_buffer(dir.path().join(path), cx));
+        async move { buffer.await.unwrap() }
+    };
+    let id_for_path = |path: &'static str, cx: &mut gpui::TestAppContext| {
+        project.update(cx, |project, cx| {
+            let tree = project.worktrees(cx).next().unwrap();
+            tree.read(cx)
+                .entry_for_path(rel_path(path))
+                .unwrap_or_else(|| panic!("no entry for path {}", path))
+                .id
+        })
+    };
+
+    let buffer2 = buffer_for_path("a/file2", cx).await;
+    let buffer3 = buffer_for_path("a/file3", cx).await;
+    let buffer4 = buffer_for_path("b/c/file4", cx).await;
+    let buffer5 = buffer_for_path("b/c/file5", cx).await;
+
+    let file2_id = id_for_path("a/file2", cx);
+    let file3_id = id_for_path("a/file3", cx);
+    let file4_id = id_for_path("b/c/file4", cx);
+
+    // Create a remote copy of this worktree.
+    let tree = project.update(cx, |project, cx| project.worktrees(cx).next().unwrap());
+    let metadata = tree.update(cx, |tree, _| tree.metadata_proto());
+
+    let updates = Arc::new(Mutex::new(Vec::new()));
+    tree.update(cx, |tree, cx| {
+        let updates = updates.clone();
+        tree.observe_updates(0, cx, move |update| {
+            updates.lock().push(update);
+            async { true }
+        });
+    });
+
+    let remote = cx.update(|cx| {
+        Worktree::remote(
+            0,
+            ReplicaId::REMOTE_SERVER,
+            metadata,
+            project.read(cx).client().into(),
+            project.read(cx).path_style(cx),
+            cx,
+        )
+    });
+
+    cx.executor().run_until_parked();
+
+    cx.update(|cx| {
+        assert!(!buffer2.read(cx).is_dirty());
+        assert!(!buffer3.read(cx).is_dirty());
+        assert!(!buffer4.read(cx).is_dirty());
+        assert!(!buffer5.read(cx).is_dirty());
+    });
+
+    // Rename and delete files and directories.
+    tree.flush_fs_events(cx).await;
+    std::fs::rename(dir.path().join("a/file3"), dir.path().join("b/c/file3")).unwrap();
+    std::fs::remove_file(dir.path().join("b/c/file5")).unwrap();
+    std::fs::rename(dir.path().join("b/c"), dir.path().join("d")).unwrap();
+    std::fs::rename(dir.path().join("a/file2"), dir.path().join("a/file2.new")).unwrap();
+    tree.flush_fs_events(cx).await;
+
+    cx.update(|app| {
+        assert_eq!(
+            tree.read(app).paths().collect::<Vec<_>>(),
+            vec![
+                rel_path("a"),
+                rel_path("a/file1"),
+                rel_path("a/file2.new"),
+                rel_path("b"),
+                rel_path("d"),
+                rel_path("d/file3"),
+                rel_path("d/file4"),
+            ]
+        );
+    });
+
+    assert_eq!(id_for_path("a/file2.new", cx), file2_id);
+    assert_eq!(id_for_path("d/file3", cx), file3_id);
+    assert_eq!(id_for_path("d/file4", cx), file4_id);
+
+    cx.update(|cx| {
+        assert_eq!(
+            buffer2.read(cx).file().unwrap().path().as_ref(),
+            rel_path("a/file2.new")
+        );
+        assert_eq!(
+            buffer3.read(cx).file().unwrap().path().as_ref(),
+            rel_path("d/file3")
+        );
+        assert_eq!(
+            buffer4.read(cx).file().unwrap().path().as_ref(),
+            rel_path("d/file4")
+        );
+        assert_eq!(
+            buffer5.read(cx).file().unwrap().path().as_ref(),
+            rel_path("b/c/file5")
+        );
+
+        assert_matches!(
+            buffer2.read(cx).file().unwrap().disk_state(),
+            DiskState::Present { .. }
+        );
+        assert_matches!(
+            buffer3.read(cx).file().unwrap().disk_state(),
+            DiskState::Present { .. }
+        );
+        assert_matches!(
+            buffer4.read(cx).file().unwrap().disk_state(),
+            DiskState::Present { .. }
+        );
+        assert_eq!(
+            buffer5.read(cx).file().unwrap().disk_state(),
+            DiskState::Deleted
+        );
+    });
+
+    // Update the remote worktree. Check that it becomes consistent with the
+    // local worktree.
+    cx.executor().run_until_parked();
+
+    remote.update(cx, |remote, _| {
+        for update in updates.lock().drain(..) {
+            remote.as_remote_mut().unwrap().update_from_remote(update);
+        }
+    });
+    cx.executor().run_until_parked();
+    remote.update(cx, |remote, _| {
+        assert_eq!(
+            remote.paths().collect::<Vec<_>>(),
+            vec![
+                rel_path("a"),
+                rel_path("a/file1"),
+                rel_path("a/file2.new"),
+                rel_path("b"),
+                rel_path("d"),
+                rel_path("d/file3"),
+                rel_path("d/file4"),
+            ]
+        );
+    });
+}
 
 #[cfg(target_os = "linux")]
 #[gpui::test(retries = 5)]
@@ -18000,6 +18172,84 @@ async fn test_repository_subfolder_git_status(
 }
 
 // TODO: this test is flaky (especially on Windows but at least sometimes on all platforms).
+#[cfg(any())]
+#[gpui::test]
+async fn test_conflicted_cherry_pick(cx: &mut gpui::TestAppContext) {
+    init_test(cx);
+    cx.executor().allow_parking();
+
+    let root = TempTree::new(json!({
+        "project": {
+            "a.txt": "a",
+        },
+    }));
+    let root_path = root.path();
+
+    let work_dir = &root_path.join("project");
+    let repo = git_init(work_dir);
+    git_add("a.txt", &repo);
+    git_commit("init", &repo);
+
+    let project = Project::test(RealFs::new(None, cx.executor()), [root_path], cx).await;
+
+    let tree = project.read_with(cx, |project, cx| project.worktrees(cx).next().unwrap());
+    tree.flush_fs_events(cx).await;
+    project
+        .update(cx, |project, cx| project.git_scans_complete(cx))
+        .await;
+    cx.executor().run_until_parked();
+
+    let repository = project.read_with(cx, |project, cx| {
+        project.repositories(cx).values().next().unwrap().clone()
+    });
+
+    git_branch("other-branch", &repo);
+    git_checkout("other-branch", &repo);
+    std::fs::write(root_path.join("project/a.txt"), "A").unwrap();
+    git_add("a.txt", &repo);
+    git_commit("capitalize", &repo);
+    let commit = git_rev_parse("HEAD", &repo);
+    git_checkout("main", &repo);
+    std::fs::write(root_path.join("project/a.txt"), "b").unwrap();
+    git_add("a.txt", &repo);
+    git_commit("improve letter", &repo);
+    git_cherry_pick_expect_conflict(&commit, &repo);
+    std::fs::read_to_string(root_path.join("project/.git/CHERRY_PICK_HEAD"))
+        .expect("No CHERRY_PICK_HEAD");
+    pretty_assertions::assert_eq!(
+        git_status(&repo),
+        collections::HashMap::from_iter([("a.txt".to_owned(), GIT_STATUS_CONFLICTED.to_owned())])
+    );
+    tree.flush_fs_events(cx).await;
+    project
+        .update(cx, |project, cx| project.git_scans_complete(cx))
+        .await;
+    cx.executor().run_until_parked();
+    let conflicts = repository.update(cx, |repository, _| {
+        repository
+            .merge_conflicts
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+    pretty_assertions::assert_eq!(conflicts, [RepoPath::from("a.txt")]);
+
+    git_add("a.txt", &repo);
+    // Attempt to manually simulate what `git cherry-pick --continue` would do.
+    git_commit("whatevs", &repo);
+    std::fs::remove_file(root.path().join("project/.git/CHERRY_PICK_HEAD"))
+        .expect("Failed to remove CHERRY_PICK_HEAD");
+    pretty_assertions::assert_eq!(git_status(&repo), collections::HashMap::default());
+    tree.flush_fs_events(cx).await;
+    let conflicts = repository.update(cx, |repository, _| {
+        repository
+            .merge_conflicts
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+    pretty_assertions::assert_eq!(conflicts, []);
+}
 
 #[gpui::test]
 async fn test_update_gitignore(cx: &mut gpui::TestAppContext) {
@@ -19704,6 +19954,9 @@ fn assert_entry_git_state(
     );
 }
 
+#[cfg(any())]
+const GIT_STATUS_CONFLICTED: &str = "UU";
+
 #[allow(clippy::disallowed_methods)]
 fn git_cmd(work_dir: &Path) -> Command {
     let mut cmd = Command::new("git");
@@ -19833,6 +20086,61 @@ fn git_checkout(name: &str, work_dir: &Path) {
         "git checkout failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[cfg(any())]
+#[allow(clippy::disallowed_methods)]
+#[track_caller]
+fn git_rev_parse(rev: &str, work_dir: &Path) -> String {
+    let output = git_cmd(work_dir)
+        .args(["rev-parse", rev])
+        .output()
+        .expect("Failed to run git rev-parse");
+    assert!(
+        output.status.success(),
+        "git rev-parse failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap().trim().to_string()
+}
+
+#[cfg(any())]
+#[allow(clippy::disallowed_methods)]
+#[track_caller]
+fn git_cherry_pick_expect_conflict(commit: &str, work_dir: &Path) {
+    let output = git_cmd(work_dir)
+        .args(["cherry-pick", "--no-commit", commit])
+        .output()
+        .expect("Failed to run git cherry-pick");
+    assert!(
+        !output.status.success(),
+        "git cherry-pick unexpectedly succeeded"
+    );
+}
+
+#[cfg(any())]
+#[allow(clippy::disallowed_methods)]
+#[track_caller]
+fn git_status(work_dir: &Path) -> collections::HashMap<String, String> {
+    let output = git_cmd(work_dir)
+        .args(["status", "--porcelain=v1"])
+        .output()
+        .expect("Failed to run git status");
+    assert!(
+        output.status.success(),
+        "git status failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let status = line[..2].to_string();
+            let path = line[3..].to_string();
+            (path, status)
+        })
+        .collect()
 }
 
 #[gpui::test]

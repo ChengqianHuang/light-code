@@ -5,17 +5,22 @@ use std::time::Duration;
 use anyhow::Context as _;
 use collections::{HashMap, HashSet};
 use futures::FutureExt as _;
-use futures::future::Shared;
-use gpui::{AppContext as _, Context, Entity, SharedString, Task};
+use futures::future::{Shared, join_all};
+use gpui::{AppContext as _, AsyncApp, Context, Entity, SharedString, Task};
 use itertools::Itertools;
 use language::Buffer;
 use lsp::LanguageServerId;
+use rpc::{TypedEnvelope, proto};
+use settings::Settings as _;
 use text::Anchor;
+use util::ResultExt as _;
 
-use crate::lsp_command::GetFoldingRanges;
+use crate::lsp_command::{GetFoldingRanges, LspCommand as _};
 use crate::lsp_store::{
     LspStore, LspStoreEvent, RunningFetch, missing_servers_to_query, next_lsp_fetch_id,
+    upstream_lsp_query_server_filter,
 };
+use crate::project_settings::ProjectSettings;
 
 #[derive(Clone, Debug)]
 pub struct LspFoldingRange {
@@ -67,6 +72,27 @@ impl LspStore {
         cx.emit(LspStoreEvent::RefreshFoldingRanges {
             server_id: for_server,
         });
+        if let Some((downstream_client, project_id)) = self.downstream_client.as_ref() {
+            downstream_client
+                .send(proto::RefreshFoldingRanges {
+                    project_id: *project_id,
+                    server_id: for_server.map(|server_id| server_id.to_proto()),
+                })
+                .context("sending refresh folding ranges downstream")
+                .log_err();
+        }
+    }
+
+    pub(super) async fn handle_refresh_folding_ranges(
+        lsp_store: Entity<Self>,
+        envelope: TypedEnvelope<proto::RefreshFoldingRanges>,
+        mut cx: AsyncApp,
+    ) -> anyhow::Result<proto::Ack> {
+        lsp_store.update(&mut cx, |lsp_store, cx| {
+            let server_id = envelope.payload.server_id.map(LanguageServerId::from_proto);
+            lsp_store.refresh_folding_ranges(server_id, cx);
+        });
+        Ok(proto::Ack {})
     }
 
     /// Returns a task that resolves to the folding ranges for the given buffer.
@@ -213,7 +239,65 @@ impl LspStore {
         for_servers: Option<HashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<Option<HashMap<LanguageServerId, Vec<LspFoldingRange>>>>> {
-        {
+        if let Some((client, project_id)) = self.upstream_client() {
+            let request = GetFoldingRanges;
+            if !self.is_capable_for_proto_request(buffer, &request, cx) {
+                return Task::ready(Ok(None));
+            }
+
+            let request_timeout = ProjectSettings::get_global(cx)
+                .global_lsp_settings
+                .get_request_timeout();
+            let request_task = client.request_lsp(
+                project_id,
+                upstream_lsp_query_server_filter(for_servers.as_ref()),
+                request_timeout,
+                cx.background_executor().clone(),
+                request.to_proto(project_id, buffer.read(cx)),
+            );
+            let buffer = buffer.clone();
+            cx.spawn(async move |weak_lsp_store, cx| {
+                let Some(lsp_store) = weak_lsp_store.upgrade() else {
+                    return Ok(None);
+                };
+                let Some(responses) = request_task.await? else {
+                    return Ok(None);
+                };
+
+                let folding_ranges = join_all(responses.payload.into_iter().map(|response| {
+                    let lsp_store = lsp_store.clone();
+                    let buffer = buffer.clone();
+                    let cx = cx.clone();
+                    async move {
+                        (
+                            LanguageServerId::from_proto(response.server_id),
+                            GetFoldingRanges
+                                .response_from_proto(response.response, lsp_store, buffer, cx)
+                                .await,
+                        )
+                    }
+                }))
+                .await;
+
+                let mut has_errors = false;
+                let result = folding_ranges
+                    .into_iter()
+                    .filter_map(|(server_id, ranges)| match ranges {
+                        Ok(ranges) => Some((server_id, ranges)),
+                        Err(e) => {
+                            has_errors = true;
+                            log::error!("Failed to fetch folding ranges: {e:#}");
+                            None
+                        }
+                    })
+                    .collect::<HashMap<_, _>>();
+                anyhow::ensure!(
+                    !has_errors || !result.is_empty(),
+                    "Failed to fetch folding ranges"
+                );
+                Ok(Some(result))
+            })
+        } else {
             let folding_task = self.request_filtered_lsp_locally(
                 buffer,
                 None::<usize>,

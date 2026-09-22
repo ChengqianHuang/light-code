@@ -9,16 +9,22 @@ license = "GPL-3.0-or-later"
 workspace = true
 
 [lib]
-path = "src/sidebar.rs"
+path = "src/project_sidebar.rs"
 
 [features]
 default = []
 
 [dependencies]
 gpui.workspace = true
+platform_title_bar.workspace = true
 project.workspace = true
+recent_projects.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+settings.workspace = true
+theme.workspace = true
+theme_settings.workspace = true
 ui.workspace = true
+util.workspace = true
 workspace.workspace = true
 zed_actions.workspace = true
-
-[dev-dependencies]

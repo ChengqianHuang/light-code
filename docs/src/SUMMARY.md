@@ -4,6 +4,7 @@
 
 - [Getting Started](./getting-started.md)
 - [Installation](./installation.md)
+  - [Update](./update.md)
   - [Uninstall](./uninstall.md)
 - [Troubleshooting](./troubleshooting.md)
 
@@ -24,13 +25,72 @@
   - [Terminal](./terminal.md)
   - [Tasks](./tasks.md)
   - [Debugger](./debugger.md)
+  - [REPL](./repl.md)
 - [Git](./git.md)
 - [Modelines](./modelines.md)
+
+# Collaboration
+
+- [Overview](./collaboration/overview.md)
+  - [Channels](./collaboration/channels.md)
+  - [Contacts and Private Calls](./collaboration/contacts-and-private-calls.md)
+
+# Remote Development
+
+- [Overview](./remote-development.md)
+- [Environment Variables](./environment.md)
+- [Dev Containers](./dev-containers.md)
+
+# AI
+
+- [Overview](./ai/overview.md)
+- [AI Quick Start](./ai/quick-start.md)
+- [AI by Company](./ai/by-company.md)
+- [Agents](./ai/agents.md)
+  - [Zed Agent](./ai/zed-agent.md)
+  - [External Agents](./ai/external-agents.md)
+  - [Terminal Threads](./ai/terminal-threads.md)
+- [Agent Panel](./ai/agent-panel.md)
+  - [Agent Settings](./ai/agent-settings.md)
+  - [Agent Profiles](./ai/agent-profiles.md)
+  - [Tools](./ai/tools.md)
+    - [Tool Permissions](./ai/tool-permissions.md)
+    - [Agent Sandboxing](./ai/sandboxing.md)
+    - [Model Context Protocol](./ai/mcp.md)
+  - [Skills](./ai/skills.md)
+  - [Instructions](./ai/instructions.md)
+- [Parallel Agents](./ai/parallel-agents.md)
+- [Inline Assistant](./ai/inline-assistant.md)
+- [LLM Providers](./ai/llm-providers.md)
+  - [Use API Access](./ai/use-api-access.md)
+  - [Use an Existing Subscription](./ai/use-an-existing-subscription.md)
+  - [Use a Gateway](./ai/use-a-gateway.md)
+  - [Use a Local Model](./ai/use-a-local-model.md)
+- [Edit Prediction](./ai/edit-prediction.md)
+- [AI Privacy](./ai/privacy-and-security.md)
+  - [Feedback and Training Data](./ai/ai-improvement.md)
+
+# Account & Billing
+
+- [Authenticate](./authentication.md)
+- [Plans & Pricing](./account/plans-and-pricing.md)
+- [Zed-Hosted Models](./account/zed-hosted-models.md)
+- [Billing](./account/billing.md)
+
+# Zed Business
+
+- [Overview](./business/overview.md)
+- [Organizations](./business/organizations.md)
+- [Roles & Permissions](./roles.md)
+- [Admin Controls](./business/admin-controls.md)
+- [Business Support](./business/business-support.md)
 
 # Privacy & Security
 
 - [Worktree Trust](./worktree-trust.md)
+- [Privacy for Business](./business/privacy.md)
 - [Telemetry](./telemetry.md)
+- [SOC2](./soc2.md)
 
 # Platform Support
 
@@ -143,6 +203,8 @@
 - [Theme Extensions](./extensions/themes.md)
 - [Icon Theme Extensions](./extensions/icon-themes.md)
 - [Snippets Extensions](./extensions/snippets.md)
+- [MCP Server Extensions](./extensions/mcp-extensions.md)
+- [Agent Server Extensions](./extensions/agent-servers.md)
 
 # Coming From…
 

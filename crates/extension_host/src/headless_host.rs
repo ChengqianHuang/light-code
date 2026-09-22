@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::{Context as _, Result};
+use client::{TypedEnvelope, proto};
 use collections::{BTreeMap, FxHasher, HashSet};
 use extension::{
     Event, Extension, ExtensionDebugAdapterProviderProxy, ExtensionEvents, ExtensionHostProxy,
@@ -33,7 +34,8 @@ pub struct ExtensionVersion {
     pub content_fingerprint: Option<u64>,
 }
 
-pub(crate) const STALE_UPLOAD_TTL: Duration = Duration::from_secs(3 * 60 * 60);
+pub(crate) const STALE_UPLOAD_TTL: Duration =
+    Duration::from_secs(crate::REMOTE_SYNC_TIMEOUT.as_secs() * 3);
 
 pub struct HeadlessExtensionStore {
     pub fs: Arc<dyn Fs>,
@@ -616,6 +618,74 @@ impl HeadlessExtensionStore {
         })
     }
 
+    pub async fn handle_sync_extensions(
+        extension_store: Entity<HeadlessExtensionStore>,
+        envelope: TypedEnvelope<proto::SyncExtensions>,
+        mut cx: AsyncApp,
+    ) -> Result<proto::SyncExtensionsResponse> {
+        let requested_extensions =
+            envelope
+                .payload
+                .extensions
+                .into_iter()
+                .map(|p| ExtensionVersion {
+                    id: p.id,
+                    version: p.version,
+                    dev: p.dev,
+                    content_fingerprint: p.content_fingerprint,
+                });
+        let missing_extensions = extension_store
+            .update(&mut cx, |extension_store, cx| {
+                extension_store.sync_extensions(requested_extensions.collect(), cx)
+            })
+            .await?;
+
+        let fs = extension_store.read_with(&cx, |extension_store, _cx| extension_store.fs.clone());
+        remove_stale_uploads(&fs, paths::remote_extensions_uploads_dir()).await;
+
+        Ok(proto::SyncExtensionsResponse {
+            missing_extensions: missing_extensions
+                .into_iter()
+                .map(|e| proto::Extension {
+                    id: e.id,
+                    version: e.version,
+                    dev: e.dev,
+                    content_fingerprint: e.content_fingerprint,
+                })
+                .collect(),
+            tmp_dir: paths::remote_extensions_uploads_dir()
+                .to_string_lossy()
+                .to_string(),
+        })
+    }
+
+    pub async fn handle_install_extension(
+        extensions: Entity<HeadlessExtensionStore>,
+        envelope: TypedEnvelope<proto::InstallExtension>,
+        mut cx: AsyncApp,
+    ) -> Result<proto::Ack> {
+        let extension = envelope
+            .payload
+            .extension
+            .context("Invalid InstallExtension request")?;
+
+        extensions
+            .update(&mut cx, |extensions, cx| {
+                extensions.install_extension(
+                    ExtensionVersion {
+                        id: extension.id,
+                        version: extension.version,
+                        dev: extension.dev,
+                        content_fingerprint: extension.content_fingerprint,
+                    },
+                    PathBuf::from(envelope.payload.tmp_dir),
+                    cx,
+                )
+            })
+            .await?;
+
+        Ok(proto::Ack {})
+    }
 }
 
 pub(crate) async fn remove_stale_uploads(fs: &Arc<dyn Fs>, uploads_dir: &Path) {

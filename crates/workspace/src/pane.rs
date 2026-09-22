@@ -47,8 +47,7 @@ use std::{
 use theme_settings::ThemeSettings;
 use ui::{
     ContextMenu, ContextMenuEntry, ContextMenuItem, DecoratedIcon, IconButtonShape, IconDecoration,
-    ButtonLike, IconDecorationKind, Indicator, Label, PopoverMenu, PopoverMenuHandle, Tab,
-    TabBar, TabPosition,
+    IconDecorationKind, Indicator, PopoverMenu, PopoverMenuHandle, Tab, TabBar, TabPosition,
     Tooltip, prelude::*, right_click_menu,
 };
 use util::{
@@ -2923,9 +2922,6 @@ impl Pane {
                 let item_handle = item.boxed_clone();
                 move |pane: &mut Self, event: &ClickEvent, window, cx| {
                     if event.click_count() > 1 {
-                        // Keep tab double-clicks from bubbling to the tab
-                        // bar, where they would zoom the window.
-                        cx.stop_propagation();
                         pane.unpreview_item_if_preview(item_id);
                         let extra_actions = item_handle.tab_extra_context_menu_actions(window, cx);
                         if let Some((_, action)) = extra_actions
@@ -3313,7 +3309,7 @@ impl Pane {
                                 && worktree.is_some_and(|worktree| worktree.read(cx).is_visible());
                             let is_local = pane.read(cx).project.upgrade().is_some_and(|project| {
                                 let project = project.read(cx);
-                                project.is_local()
+                                project.is_local() || project.is_via_wsl_with_host_interop(cx)
                             });
                             let is_remote = pane
                                 .read(cx)
@@ -3571,22 +3567,6 @@ impl Pane {
         }
     }
 
-    /// Whether this pane's tab bar is the top row of the window, so the
-    /// macOS traffic lights overlay it and the bar must act as the drag area.
-    fn embeds_traffic_lights(&self, window: &Window, cx: &Context<Pane>) -> bool {
-        PlatformStyle::platform() == PlatformStyle::Mac
-            && !window.is_fullscreen()
-            && !window.is_simple_fullscreen()
-            && self
-                .workspace
-                .upgrade()
-                .is_some_and(|workspace| {
-                    workspace.read(cx).panes.first().is_some_and(|first| {
-                        first.entity_id() == cx.entity_id()
-                    })
-                })
-    }
-
     fn configure_tab_bar_start(
         &mut self,
         tab_bar: TabBar,
@@ -3595,40 +3575,7 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Pane>,
     ) -> TabBar {
-        let embeds_traffic_lights = self.embeds_traffic_lights(window, cx);
-        let project_name = self.workspace.upgrade().and_then(|workspace| {
-            let project = workspace.read(cx).project();
-            project
-                .read(cx)
-                .visible_worktrees(cx)
-                .next()
-                .map(|worktree| worktree.read(cx).root_name_str().to_string())
-        });
         tab_bar
-            .when(embeds_traffic_lights, |tab_bar| {
-                let tab_bar = tab_bar.embedded_in_title_bar();
-                match project_name {
-                    Some(project_name) => tab_bar.start_child(
-                        ButtonLike::new("project-switcher")
-                            .child(Label::new(project_name))
-                            .on_click(|_, window, cx| {
-                                window
-                                    .dispatch_action(
-                                        Box::new(zed_actions::git::Worktree),
-                                        cx,
-                                    );
-                            })
-                            .tooltip(move |window, cx| {
-                                Tooltip::for_action(
-                                    "Manage projects",
-                                    &zed_actions::git::Worktree,
-                                    cx,
-                                )
-                            }),
-                    ),
-                    None => tab_bar,
-                }
-            })
             .when(
                 self.display_nav_history_buttons.unwrap_or_default(),
                 |tab_bar| {
@@ -4178,11 +4125,25 @@ impl Pane {
         let mut to_pane = cx.entity();
         let mut split_direction = self.drag_split_direction;
         let paths = paths.paths().to_vec();
-        let (should_block, _needs_wsl_translation) = self
+        let (should_block, needs_wsl_translation) = self
             .workspace
             .update(cx, |workspace, cx| {
-                let _project = workspace.project().read(cx);
+                let project = workspace.project().read(cx);
 
+                if project.is_via_collab() {
+                    workspace.show_error("Cannot drop files on a remote project", cx);
+                    return (true, false);
+                }
+                if project.is_via_remote_server() {
+                    if !project.is_via_wsl(cx) {
+                        workspace.show_error(
+                            "Cannot drop local files on a remote SSH/Docker project",
+                            cx,
+                        );
+                        return (true, false);
+                    }
+                    return (false, true);
+                }
                 (false, false)
             })
             .unwrap_or((true, false));
@@ -4193,7 +4154,7 @@ impl Pane {
         self.workspace
             .update(cx, |workspace, cx| {
                 let fs = Arc::clone(workspace.project().read(cx).fs());
-                let _project = workspace.project().clone();
+                let project = workspace.project().clone();
                 cx.spawn_in(window, async move |workspace, cx| {
                     // `fs` is the host's file system even for remote projects, so probe the paths as they were dropped, before translating them to the remote's path style.
                     let mut is_file_checks = FuturesUnordered::new();
@@ -4212,7 +4173,39 @@ impl Pane {
                         split_direction = None;
                     }
 
-                    let paths = paths;
+                    let paths = if needs_wsl_translation {
+                        let mut translated = Vec::with_capacity(paths.len());
+                        for path in &paths {
+                            log::debug!("dropped Windows path {}", path.display());
+                            let fut = project.read_with(cx, |project, cx| {
+                                project.try_windows_path_to_wsl(path, cx)
+                            });
+                            match fut.await {
+                                Ok(wsl_path) => {
+                                    log::debug!("translated to WSL path {}", wsl_path.display());
+                                    translated.push(wsl_path);
+                                }
+                                Err(e) => log::warn!(
+                                    "wslpath failed for {}: {e:#}, dropping this path",
+                                    path.display()
+                                ),
+                            }
+                        }
+                        if translated.is_empty() && !paths.is_empty() {
+                            workspace
+                                .update_in(cx, |workspace, _, cx| {
+                                    workspace.show_error(
+                                        "Could not translate the dropped paths into WSL paths",
+                                        cx,
+                                    );
+                                })
+                                .ok();
+                            return;
+                        }
+                        translated
+                    } else {
+                        paths
+                    };
 
                     if let Ok((open_task, to_pane)) =
                         workspace.update_in(cx, |workspace, window, cx| {
@@ -4433,7 +4426,7 @@ impl Render for Pane {
         // WSL remotes accept dropped host files too, since their paths can be translated with `wslpath`; see `Pane::handle_external_paths_drop`.
         let accepts_external_paths = {
             let project = project.read(cx);
-            project.is_local()
+            project.is_local() || project.is_via_wsl(cx)
         };
 
         v_flex()

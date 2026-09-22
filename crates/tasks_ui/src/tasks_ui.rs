@@ -482,7 +482,7 @@ mod tests {
     use editor::{Editor, MultiBufferOffset, SelectionEffects};
     use gpui::TestAppContext;
     use language::{Language, LanguageConfig};
-    use project::{BasicContextProvider, FakeFs, Project};
+    use project::{BasicContextProvider, FakeFs, Project, task_store::TaskStore};
     use serde_json::json;
     use task::{TaskContext, TaskVariables, VariableName};
     use ui::VisualContext;
@@ -705,6 +705,7 @@ mod tests {
             let state = AppState::test(cx);
             crate::init(cx);
             editor::init(cx);
+            TaskStore::init(None);
             state
         })
     }

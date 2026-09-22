@@ -61,6 +61,3 @@ crates/docs_preprocessor/actions.json
 
 .local*
 .cache
-
-# Local agent tool state
-.workbuddy/

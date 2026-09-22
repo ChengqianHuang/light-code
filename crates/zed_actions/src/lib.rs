@@ -75,8 +75,6 @@ actions!(
         OpenStatusPage,
         /// Opens the Zed merch store.
         GetMerch,
-        /// Opens the telemetry log.
-        OpenTelemetryLog,
         /// Opens the performance profiler.
         OpenPerformanceProfiler,
         /// Opens the onboarding view.
@@ -584,8 +582,6 @@ pub mod agent {
             OpenSettings,
             /// Opens the agent onboarding modal.
             OpenOnboardingModal,
-            /// Resets the agent onboarding state.
-            ResetOnboarding,
             /// Starts a chat conversation with the agent.
             Chat,
             /// Toggles the language model selector dropdown.

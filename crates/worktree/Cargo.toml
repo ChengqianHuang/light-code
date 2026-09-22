@@ -49,6 +49,7 @@ parking_lot.workspace = true
 paths.workspace = true
 postage.workspace = true
 pretty_assertions = { workspace = true, optional = true }
+rpc = { workspace = true, features = ["gpui"] }
 settings.workspace = true
 smallvec.workspace = true
 sum_tree.workspace = true
@@ -63,6 +64,7 @@ collections = { workspace = true, features = ["test-support"] }
 gpui = { workspace = true, features = ["test-support"] }
 paths = { workspace = true, features = ["test-support"] }
 rand.workspace = true
+rpc = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true
 settings = { workspace = true, features = ["test-support"] }
 util = { workspace = true, features = ["test-support"] }

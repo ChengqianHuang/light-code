@@ -1,5 +1,4 @@
-use gpui::{AnyElement, ScrollHandle, WindowControlArea, px};
-use crate::utils::TRAFFIC_LIGHT_PADDING;
+use gpui::{AnyElement, ScrollHandle};
 use smallvec::SmallVec;
 
 use crate::Tab;
@@ -12,7 +11,6 @@ pub struct TabBar {
     children: SmallVec<[AnyElement; 2]>,
     end_children: SmallVec<[AnyElement; 2]>,
     scroll_handle: Option<ScrollHandle>,
-    embedded_in_title_bar: bool,
 }
 
 impl TabBar {
@@ -23,16 +21,7 @@ impl TabBar {
             children: SmallVec::new(),
             end_children: SmallVec::new(),
             scroll_handle: None,
-            embedded_in_title_bar: false,
         }
-    }
-
-    /// Renders the tab bar as the top row of a window whose traffic lights
-    /// overlay it: pads the left edge for the system buttons and turns the
-    /// bar into the window drag area.
-    pub fn embedded_in_title_bar(mut self) -> Self {
-        self.embedded_in_title_bar = true;
-        self
     }
 
     pub fn track_scroll(mut self, scroll_handle: &ScrollHandle) -> Self {
@@ -105,16 +94,6 @@ impl RenderOnce for TabBar {
         div()
             .id(self.id)
             .group("tab_bar")
-            .when(self.embedded_in_title_bar, |tab_bar| {
-                tab_bar
-                    .pl(px(TRAFFIC_LIGHT_PADDING))
-                    .window_control_area(WindowControlArea::Drag)
-                    .on_click(|event, window, _| {
-                        if event.click_count() == 2 {
-                            window.titlebar_double_click();
-                        }
-                    })
-            })
             .flex()
             .flex_none()
             .w_full()

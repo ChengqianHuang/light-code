@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::Arc;
 use util::rel_path::rel_path;
 
-use project::task_store::TaskSettingsLocation;
+use project::task_store::{TaskSettingsLocation, TaskStore};
 
 use project::{WorktreeId, task_inventory::*};
 use test_inventory::*;
@@ -610,6 +610,7 @@ async fn test_zed_tasks_take_precedence_over_vscode(cx: &mut TestAppContext) {
 
 fn init_test(_cx: &mut TestAppContext) {
     zlog::init_test();
+    TaskStore::init(None);
 }
 
 fn resolved_task_names(

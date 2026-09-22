@@ -26,6 +26,7 @@ gpui.workspace = true
 hex.workspace = true
 log.workspace = true
 parking_lot.workspace = true
+proto.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

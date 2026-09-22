@@ -18,7 +18,7 @@ use language::{
     Buffer, CodeLabel, File as _, Language, Location, Rope, ToOffset, ToPoint, lsp_to_symbol_kind,
 };
 use picker::{Picker, PickerDelegate};
-use project::{CallHierarchyItem, LanguageServerUpdateMessage, LspStoreEvent, Project};
+use project::{CallHierarchyItem, LspStoreEvent, Project};
 use settings::Settings;
 use theme_settings::ThemeSettings;
 use ui::{
@@ -217,7 +217,7 @@ impl CallHierarchyView {
             window,
             |view, _, event, window, cx| match event {
                 LspStoreEvent::LanguageServerUpdate {
-                    message: LanguageServerUpdateMessage::WorkEnd,
+                    message: proto::update_language_server::Variant::WorkEnd(_),
                     ..
                 } => {
                     view.retry_empty_hierarchy(
@@ -2476,7 +2476,9 @@ mod tests {
             cx.emit(LspStoreEvent::LanguageServerUpdate {
                 language_server_id: lsp::LanguageServerId(0),
                 name: None,
-                message: LanguageServerUpdateMessage::WorkEnd,
+                message: proto::update_language_server::Variant::WorkEnd(proto::LspWorkEnd {
+                    token: None,
+                }),
             });
         });
     }

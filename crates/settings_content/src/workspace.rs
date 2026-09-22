@@ -58,6 +58,8 @@ pub struct WorkspaceSettingsContent {
     ///
     /// Default: existing_window
     pub default_open_behavior: Option<DefaultOpenBehavior>,
+    /// Settings for the multi-project sidebar.
+    pub project_sidebar: Option<ProjectSidebarSettingsContent>,
     /// Whether to attempt to restore previous file's state when opening it again.
     /// The state is stored per pane.
     /// When disabled, defaults are applied instead of the state restoration.
@@ -172,6 +174,64 @@ pub struct WorkspaceSettingsContent {
     /// Whether the focused panel follows the mouse location
     /// Default: false
     pub focus_follows_mouse: Option<FocusFollowsMouse>,
+}
+
+#[with_fallible_options]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom,
+)]
+pub struct ProjectSidebarSettingsContent {
+    /// Whether to show the multi-project sidebar.
+    ///
+    /// Default: true
+    pub enabled: Option<bool>,
+    /// Which side of the window contains the multi-project sidebar.
+    ///
+    /// Default: right
+    pub side: Option<ProjectSidebarDockPosition>,
+}
+
+impl ProjectSidebarSettingsContent {
+    pub fn set_side(&mut self, side: ProjectSidebarDockPosition) {
+        self.side = Some(side);
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectSidebarDockPosition {
+    Left,
+    #[default]
+    Right,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProjectSidebarSide {
+    Left,
+    #[default]
+    Right,
+}
+
+impl From<ProjectSidebarDockPosition> for ProjectSidebarSide {
+    fn from(position: ProjectSidebarDockPosition) -> Self {
+        match position {
+            ProjectSidebarDockPosition::Left => Self::Left,
+            ProjectSidebarDockPosition::Right => Self::Right,
+        }
+    }
 }
 
 #[with_fallible_options]

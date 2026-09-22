@@ -34,6 +34,9 @@
       "ctrl-alt-,": "zed::OpenSettingsFile",
       "ctrl-q": "zed::Quit",
       "f4": "debugger::Start",
+      "ctrl-alt-z": "edit_prediction::RatePredictions",
+      "ctrl-alt-shift-i": "edit_prediction::ToggleMenu",
+      "ctrl-alt-l": "lsp_tool::ToggleMenu",
       "ctrl-alt-shift-s": "workspace::ToggleWorktreeSecurity",
     },
   },
@@ -176,6 +179,8 @@
   {
     "context": "Editor && jupyter",
     "bindings": {
+      "ctrl-shift-enter": "repl::Run",
+      "ctrl-alt-enter": "repl::RunInPlace",
     },
   },
   {
@@ -518,6 +523,8 @@
   {
     "context": "Editor && mode == full",
     "bindings": {
+      "ctrl-shift-o": "outline::Toggle",
+      "ctrl-g": "go_to_line::Toggle",
     },
   },
   {
@@ -536,8 +543,7 @@
       // "alt-ctrl-o": ["projects::OpenRecent", { "create_new_window": true }],
       "alt-ctrl-o": "projects::OpenRecent",
       "ctrl-r": "projects::OpenRecent",
-      // Change to open path modal for existing remote connection by setting the parameter
-      // "alt-ctrl-shift-o": ["projects::OpenRemote", { "from_existing_connection": true }],
+      "alt-ctrl-shift-b": "branches::OpenRecent",
       "alt-ctrl-shift-w": "git::Worktree",
       "alt-shift-enter": "toast::RunAction",
       "ctrl-~": "workspace::NewTerminal",
@@ -583,6 +589,7 @@
       "ctrl-k ctrl-t": "theme_selector::Toggle",
       "ctrl-k ctrl-shift-t": "theme::ToggleMode",
       "ctrl-alt-super-p": "settings_profile_selector::Toggle",
+      "ctrl-t": "project_symbols::Toggle",
       "ctrl-p": "file_finder::Toggle",
       "ctrl-shift-tab": ["tab_switcher::Toggle", { "select_last": true }],
       "ctrl-tab": "tab_switcher::Toggle",
@@ -632,7 +639,6 @@
       "left": "menu::SelectParent",
       "right": "menu::SelectChild",
       "enter": "menu::Confirm",
-      "ctrl-f": "agents_sidebar::FocusSidebarFilter",
     },
   },
   {
@@ -784,18 +790,12 @@
   // Custom bindings
   {
     "bindings": {
-      "ctrl-alt-shift-f": "workspace::FollowNextCollaborator",
       // Only available in debug builds: opens an element inspector for development.
       "ctrl-alt-i": "dev::ToggleInspector",
       // Cycles the frame-time debug overlay between hidden, frame-time-only, and detailed modes.
       "ctrl-alt-shift-p": "dev::ToggleFpsOverlay",
       // Clears the frame-time overlay's statistics, except the total frame count.
       "ctrl-alt-shift-o": "dev::ResetFrameOverlayStats",
-    },
-  },
-  {
-    "context": "!Terminal",
-    "bindings": {
     },
   },
   {
@@ -836,6 +836,8 @@
       "escape": "menu::Cancel",
       "left": "outline_panel::CollapseSelectedEntry",
       "right": "outline_panel::ExpandSelectedEntry",
+      "alt-copy": "outline_panel::CopyPath",
+      "ctrl-alt-c": "outline_panel::CopyPath",
       "alt-shift-copy": "workspace::CopyRelativePath",
       "alt-ctrl-shift-c": "workspace::CopyRelativePath",
       "alt-ctrl-r": "outline_panel::RevealInFileManager",
@@ -1049,27 +1051,6 @@
     },
   },
   {
-    "context": "CollabPanel && not_editing",
-    "bindings": {
-      "space": "menu::Confirm",
-    },
-  },
-  {
-    "context": "CollabPanel",
-    "bindings": {
-    },
-  },
-  {
-    "context": "(CollabPanel && editing) > Editor",
-    "bindings": {
-    },
-  },
-  {
-    "context": "ChannelModal",
-    "bindings": {
-    },
-  },
-  {
     "context": "CallHierarchyPicker > Picker > Editor",
     "bindings": {
       "ctrl-k ctrl-h": "call_hierarchy::ToggleDirection",
@@ -1095,11 +1076,6 @@
     "context": "LspCommandSelector > Picker > Editor",
     "bindings": {
       "tab": "lsp_command_selector::ToggleArgumentsFocus",
-    },
-  },
-  {
-    "context": "ChannelModal > Picker > Editor",
-    "bindings": {
     },
   },
   {
@@ -1241,6 +1217,8 @@
   {
     "context": "MarkdownPreview",
     "bindings": {
+      "pageup": "markdown::ScrollPageUp",
+      "pagedown": "markdown::ScrollPageDown",
       "up": "markdown::ScrollUp",
       "down": "markdown::ScrollDown",
       "alt-up": "markdown::ScrollUpByItem",
@@ -1308,6 +1286,7 @@
       "ctrl-+": ["zed::IncreaseUiFontSize", { "persist": false }],
       "ctrl--": ["zed::DecreaseUiFontSize", { "persist": false }],
       "ctrl-0": ["zed::ResetUiFontSize", { "persist": false }],
+      "ctrl-enter": "onboarding::Finish",
     },
   },
   {
@@ -1395,6 +1374,8 @@
   {
     "context": "EditPredictionContext > Editor",
     "bindings": {
+      "alt-left": "dev::EditPredictionContextGoBack",
+      "alt-right": "dev::EditPredictionContextGoForward",
     },
   },
   {
@@ -1495,24 +1476,6 @@
     "bindings": {
       "tab": "git_graph::FocusNextTabStop",
       "shift-tab": "git_graph::FocusPreviousTabStop",
-    },
-  },
-  {
-    "context": "SkillCreator",
-    "bindings": {
-      "ctrl-w": "workspace::CloseWindow",
-      "ctrl-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
-    },
-  },
-  {
-    "context": "SkillCreator > Editor",
-    "bindings": {
-      "ctrl-w": "workspace::CloseWindow",
-      "ctrl-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
     },
   },
 ]

@@ -1,3 +1,4 @@
+use client::telemetry;
 use extension_host::ExtensionStore;
 use gpui::{App, ClipboardItem, PromptLevel, actions};
 use system_specs::{CopySystemSpecsIntoClipboard, SystemSpecs};
@@ -49,7 +50,7 @@ pub fn init(cx: &mut App) {
         workspace
             .register_action(|_, _: &CopySystemSpecsIntoClipboard, window, cx| {
                 let specs =
-                    SystemSpecs::new(window, cx, std::env::consts::OS.to_owned(), String::new());
+                    SystemSpecs::new(window, cx, telemetry::os_name(), telemetry::os_version());
 
                 cx.spawn_in(window, async move |_, cx| {
                     let specs = specs.await.to_string();
@@ -85,7 +86,7 @@ pub fn init(cx: &mut App) {
             })
             .register_action(move |_, _: &FileBugReport, window, cx| {
                 let specs =
-                    SystemSpecs::new(window, cx, std::env::consts::OS.to_owned(), String::new());
+                    SystemSpecs::new(window, cx, telemetry::os_name(), telemetry::os_version());
                 cx.spawn_in(window, async move |_, cx| {
                     let specs = specs.await;
                     cx.update(|_, cx| {
@@ -97,7 +98,7 @@ pub fn init(cx: &mut App) {
             })
             .register_action(move |_, _: &EmailZed, window, cx| {
                 let specs =
-                    SystemSpecs::new(window, cx, std::env::consts::OS.to_owned(), String::new());
+                    SystemSpecs::new(window, cx, telemetry::os_name(), telemetry::os_version());
                 cx.spawn_in(window, async move |_, cx| {
                     let specs = specs.await;
                     cx.update(|_, cx| {

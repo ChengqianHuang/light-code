@@ -3,6 +3,7 @@ mod undo;
 mod utils;
 
 use anyhow::{Context as _, Result};
+use client::{ErrorCode, ErrorExt};
 use collections::{BTreeSet, HashMap, hash_map};
 use editor::{
     Editor, EditorEvent, MultiBufferOffset,
@@ -22,7 +23,7 @@ use gpui::{
     ExternalDragPayload, ExternalPaths, FileDragPaths, FileDropEvent, FocusHandle, Focusable,
     FontWeight, Hsla, InteractiveElement, KeyContext, ListHorizontalSizingBehavior,
     ListSizingBehavior, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent,
-    MouseExitEvent, ParentElement, Pixels, Point, PromptLevel, Render,
+    MouseExitEvent, ParentElement, PathPromptOptions, Pixels, Point, PromptLevel, Render,
     ScrollStrategy, Stateful, Styled, Subscription, Task, UniformListScrollHandle, WeakEntity,
     Window, actions, anchored, deferred, div, hsla, linear_color_stop, linear_gradient, point, px,
     size, transparent_white, uniform_list,
@@ -30,6 +31,7 @@ use gpui::{
 use language::DiagnosticSeverity;
 use markdown_preview::markdown_preview_view::MarkdownPreviewView;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
+use notifications::status_toast::StatusToast;
 use project::{
     Entry, EntryKind, Fs, GitEntry, GitEntryRef, GitTraversal, Project, ProjectEntryId,
     ProjectPath, Worktree, WorktreeId,
@@ -374,6 +376,8 @@ actions!(
         Cut,
         /// Pastes the previously cut or copied item.
         Paste,
+        /// Downloads the selected remote file
+        DownloadFromRemote,
         /// Renames the selected file or directory.
         Rename,
         /// Opens the selected file in the editor.
@@ -680,7 +684,7 @@ impl ProjectPanel {
     ) -> Entity<Self> {
         let project = workspace.project().clone();
         let git_store = project.read(cx).git_store().clone();
-        let _path_style = project.read(cx).path_style(cx);
+        let path_style = project.read(cx).path_style(cx);
         let project_panel = cx.new(|cx| {
             let focus_handle = cx.focus_handle();
             cx.on_focus(&focus_handle, window, Self::focus_in).detach();
@@ -907,45 +911,56 @@ impl ProjectPanel {
                     allow_preview,
                 } => {
                     if let Some(worktree) = project.read(cx).worktree_for_entry(entry_id, cx)
-                        && let Some(entry) = worktree.read(cx).entry_for_id(entry_id)
-                    {
-                        let file_path = entry.path.clone();
-                        let worktree_id = worktree.read(cx).id();
-                        let entry_id = entry.id;
-                        workspace
-                            .open_path_preview(
-                                ProjectPath {
-                                    worktree_id,
-                                    path: file_path.clone(),
-                                },
-                                None,
-                                focus_opened_item,
-                                allow_preview,
-                                true,
-                                window,
-                                cx,
-                            )
-                            .detach_and_prompt_err("Failed to open file", window, cx, |_, _, _| {
-                                None
-                            });
+                        && let Some(entry) = worktree.read(cx).entry_for_id(entry_id) {
+                            let file_path = entry.path.clone();
+                            let worktree_id = worktree.read(cx).id();
+                            let entry_id = entry.id;
+                            let is_via_ssh = project.read(cx).is_via_remote_server();
 
-                        if let Some(project_panel) = project_panel.upgrade() {
-                            // Always select and mark the entry, regardless of whether it is opened or not.
-                            project_panel.update(cx, |project_panel, _| {
-                                let entry = SelectedEntry {
-                                    worktree_id,
-                                    entry_id,
-                                };
-                                project_panel.marked_entries.clear();
-                                project_panel.marked_entries.push(entry);
-                                project_panel.selection = Some(entry);
-                            });
-                            if !focus_opened_item {
-                                let focus_handle = project_panel.read(cx).focus_handle.clone();
-                                window.focus(&focus_handle, cx);
+                            workspace
+                                .open_path_preview(
+                                    ProjectPath {
+                                        worktree_id,
+                                        path: file_path.clone(),
+                                    },
+                                    None,
+                                    focus_opened_item,
+                                    allow_preview,
+                                    true,
+                                    window, cx,
+                                )
+                                .detach_and_prompt_err("Failed to open file", window, cx, move |e, _, _| {
+                                    match e.error_code() {
+                                        ErrorCode::Disconnected => if is_via_ssh {
+                                            Some("Disconnected from SSH host".to_string())
+                                        } else {
+                                            Some("Disconnected from remote project".to_string())
+                                        },
+                                        ErrorCode::UnsharedItem => Some(format!(
+                                            "{} is not shared by the host. This could be because it has been marked as `private`",
+                                            file_path.display(path_style)
+                                        )),
+                                        // See note in worktree.rs where this error originates. Returning Some in this case prevents
+                                        // the error popup from saying "Try Again", which is a red herring in this case
+                                        ErrorCode::Internal if e.to_string().contains("File is too large to load") => Some(e.to_string()),
+                                        _ => None,
+                                    }
+                                });
+
+                            if let Some(project_panel) = project_panel.upgrade() {
+                                // Always select and mark the entry, regardless of whether it is opened or not.
+                                project_panel.update(cx, |project_panel, _| {
+                                    let entry = SelectedEntry { worktree_id, entry_id };
+                                    project_panel.marked_entries.clear();
+                                    project_panel.marked_entries.push(entry);
+                                    project_panel.selection = Some(entry);
+                                });
+                                if !focus_opened_item {
+                                    let focus_handle = project_panel.read(cx).focus_handle.clone();
+                                    window.focus(&focus_handle, cx);
+                                }
                             }
                         }
-                    }
                 }
                 &Event::SplitEntry {
                     entry_id,
@@ -953,21 +968,19 @@ impl ProjectPanel {
                     split_direction,
                 } => {
                     if let Some(worktree) = project.read(cx).worktree_for_entry(entry_id, cx)
-                        && let Some(entry) = worktree.read(cx).entry_for_id(entry_id)
-                    {
-                        workspace
-                            .split_path_preview(
-                                ProjectPath {
-                                    worktree_id: worktree.read(cx).id(),
-                                    path: entry.path.clone(),
-                                },
-                                allow_preview,
-                                split_direction,
-                                window,
-                                cx,
-                            )
-                            .detach_and_log_err(cx);
-                    }
+                        && let Some(entry) = worktree.read(cx).entry_for_id(entry_id) {
+                            workspace
+                                .split_path_preview(
+                                    ProjectPath {
+                                        worktree_id: worktree.read(cx).id(),
+                                        path: entry.path.clone(),
+                                    },
+                                    allow_preview,
+                                    split_direction,
+                                    window, cx,
+                                )
+                                .detach_and_log_err(cx);
+                        }
                 }
 
                 _ => {}
@@ -1175,6 +1188,10 @@ impl ProjectPanel {
 
                                 menu.action_disabled_when(!can_undo, "Undo", Box::new(Undo))
                                     .action_disabled_when(!can_redo, "Redo", Box::new(Redo))
+                            })
+                            .when(is_remote, |menu| {
+                                menu.separator()
+                                    .action("Download...", Box::new(DownloadFromRemote))
                             })
                             .separator()
                             .action("Copy Path", Box::new(zed_actions::workspace::CopyPath))
@@ -2452,18 +2469,18 @@ impl ProjectPanel {
                     panel
                         .update(cx, |panel, cx| {
                             let message = format!("Failed to restore {}: {}", file_name, e);
+                            let toast = StatusToast::new(message, cx, |this, _| {
+                                this.icon(
+                                    Icon::new(IconName::XCircle)
+                                        .size(IconSize::Small)
+                                        .color(Color::Error),
+                                )
+                                .dismiss_button(true)
+                            });
                             panel
                                 .workspace
                                 .update(cx, |workspace, cx| {
-                                    workspace.show_toast(
-                                        workspace::Toast::new(
-                                            workspace::notifications::NotificationId::Named(
-                                                "project-panel-restore-failure".into(),
-                                            ),
-                                            message,
-                                        ),
-                                        cx,
-                                    );
+                                    workspace.toggle_status_toast(toast, cx);
                                 })
                                 .ok();
                         })
@@ -2524,16 +2541,12 @@ impl ProjectPanel {
                     if let Some(workspace) = workspace.upgrade() {
                         cx.update(|cx| {
                             let message = format!("Failed to add to .gitignore: {}", e);
+                            let toast = StatusToast::new(message, cx, |this, _| {
+                                this.icon(Icon::new(IconName::XCircle).color(Color::Error))
+                                    .dismiss_button(true)
+                            });
                             workspace.update(cx, |workspace, cx| {
-                                workspace.show_toast(
-                                    workspace::Toast::new(
-                                        workspace::notifications::NotificationId::Named(
-                                            "project-panel-gitignore-failure".into(),
-                                        ),
-                                        message,
-                                    ),
-                                    cx,
-                                );
+                                workspace.toggle_status_toast(toast, cx);
                             });
                         });
                     }
@@ -2575,16 +2588,12 @@ impl ProjectPanel {
                     if let Some(workspace) = workspace.upgrade() {
                         cx.update(|cx| {
                             let message = format!("Failed to add to .git/info/exclude: {}", e);
+                            let toast = StatusToast::new(message, cx, |this, _| {
+                                this.icon(Icon::new(IconName::XCircle).color(Color::Error))
+                                    .dismiss_button(true)
+                            });
                             workspace.update(cx, |workspace, cx| {
-                                workspace.show_toast(
-                                    workspace::Toast::new(
-                                        workspace::notifications::NotificationId::Named(
-                                            "project-panel-git-exclude-failure".into(),
-                                        ),
-                                        message,
-                                    ),
-                                    cx,
-                                );
+                                workspace.toggle_status_toast(toast, cx);
                             });
                         });
                     }
@@ -2812,17 +2821,18 @@ impl ProjectPanel {
             (false, _) => format!("Failed to delete {failed_count} of {total_count} files."),
         };
 
+        let toast = StatusToast::new(message, cx, |this, _| {
+            this.icon(
+                Icon::new(IconName::XCircle)
+                    .size(IconSize::Small)
+                    .color(Color::Error),
+            )
+            .dismiss_button(true)
+        });
+
         self.workspace
             .update(cx, |workspace, cx| {
-                workspace.show_toast(
-                    workspace::Toast::new(
-                        workspace::notifications::NotificationId::Named(
-                            "project-panel-remove-failure".into(),
-                        ),
-                        message,
-                    ),
-                    cx,
-                );
+                workspace.toggle_status_toast(toast, cx);
             })
             .ok();
     }
@@ -3578,6 +3588,178 @@ impl ProjectPanel {
             self.expand_entry(worktree_id, entry.id, cx);
             Some(())
         });
+    }
+
+    fn download_from_remote(
+        &mut self,
+        _: &DownloadFromRemote,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let entries = self.effective_entries();
+        if entries.is_empty() {
+            return;
+        }
+
+        let project = self.project.read(cx);
+
+        // Collect file entries with their worktree_id, path, and relative path for destination
+        // For directories, we collect all files under them recursively
+        let mut files_to_download: Vec<(WorktreeId, Arc<RelPath>, PathBuf)> = Vec::new();
+
+        for selected in entries.iter() {
+            let Some(worktree) = project.worktree_for_id(selected.worktree_id, cx) else {
+                continue;
+            };
+            let worktree = worktree.read(cx);
+            let Some(entry) = worktree.entry_for_id(selected.entry_id) else {
+                continue;
+            };
+
+            if entry.is_file() {
+                // Single file: use just the filename
+                let filename = entry
+                    .path
+                    .file_name()
+                    .map(str::to_string)
+                    .unwrap_or_default();
+                files_to_download.push((
+                    selected.worktree_id,
+                    entry.path.clone(),
+                    PathBuf::from(filename),
+                ));
+            } else if entry.is_dir() {
+                // Directory: collect all files recursively, preserving relative paths
+                let dir_name = entry
+                    .path
+                    .file_name()
+                    .map(str::to_string)
+                    .unwrap_or_default();
+                let base_path = entry.path.clone();
+
+                // Use traverse_from_path to iterate all entries under this directory
+                let mut traversal = worktree.traverse_from_path(true, true, true, &entry.path);
+                while let Some(child_entry) = traversal.entry() {
+                    // Stop when we're no longer under the directory
+                    if !child_entry.path.starts_with(&base_path) {
+                        break;
+                    }
+
+                    if child_entry.is_file() {
+                        // Calculate relative path from the directory root
+                        let relative_path = child_entry
+                            .path
+                            .strip_prefix(&base_path)
+                            .map(|p| PathBuf::from(dir_name.clone()).join(p.as_unix_str()))
+                            .unwrap_or_else(|_| {
+                                PathBuf::from(
+                                    child_entry
+                                        .path
+                                        .file_name()
+                                        .map(str::to_string)
+                                        .unwrap_or_default(),
+                                )
+                            });
+                        files_to_download.push((
+                            selected.worktree_id,
+                            child_entry.path.clone(),
+                            relative_path,
+                        ));
+                    }
+                    traversal.advance();
+                }
+            }
+        }
+
+        if files_to_download.is_empty() {
+            return;
+        }
+
+        let total_files = files_to_download.len();
+        let workspace = self.workspace.clone();
+
+        let destination_dir = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("Download".into()),
+        });
+
+        let fs = self.fs.clone();
+        let notification_id =
+            workspace::notifications::NotificationId::Named("download-progress".into());
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(Ok(Some(mut paths))) = destination_dir.await {
+                if let Some(dest_dir) = paths.pop() {
+                    // Show initial toast
+                    workspace
+                        .update(cx, |workspace, cx| {
+                            workspace.show_toast(
+                                workspace::Toast::new(
+                                    notification_id.clone(),
+                                    format!("Downloading 0/{} files...", total_files),
+                                ),
+                                cx,
+                            );
+                        })
+                        .ok();
+
+                    for (index, (worktree_id, entry_path, relative_path)) in
+                        files_to_download.into_iter().enumerate()
+                    {
+                        // Update progress toast
+                        workspace
+                            .update(cx, |workspace, cx| {
+                                workspace.show_toast(
+                                    workspace::Toast::new(
+                                        notification_id.clone(),
+                                        format!(
+                                            "Downloading {}/{} files...",
+                                            index + 1,
+                                            total_files
+                                        ),
+                                    ),
+                                    cx,
+                                );
+                            })
+                            .ok();
+
+                        let destination_path = dest_dir.join(&relative_path);
+
+                        // Create parent directories if needed
+                        if let Some(parent) = destination_path.parent() {
+                            if !parent.exists() {
+                                fs.create_dir(parent).await.log_err();
+                            }
+                        }
+
+                        let download_task = this.update(cx, |this, cx| {
+                            let project = this.project.clone();
+                            project.update(cx, |project, cx| {
+                                project.download_file(worktree_id, entry_path, destination_path, cx)
+                            })
+                        });
+                        if let Ok(task) = download_task {
+                            task.await.log_err();
+                        }
+                    }
+
+                    // Show completion toast
+                    workspace
+                        .update(cx, |workspace, cx| {
+                            workspace.show_toast(
+                                workspace::Toast::new(
+                                    notification_id.clone(),
+                                    format!("Downloaded {} files", total_files),
+                                ),
+                                cx,
+                            );
+                        })
+                        .ok();
+                }
+            }
+        })
+        .detach();
     }
 
     fn duplicate(&mut self, _: &Duplicate, window: &mut Window, cx: &mut Context<Self>) {
@@ -7135,6 +7317,10 @@ impl Render for ProjectPanel {
                             .on_action(cx.listener(Self::open_in_terminal))
                     },
                 )
+                .when(project.is_via_remote_server(), |el| {
+                    el.on_action(cx.listener(Self::open_in_terminal))
+                        .on_action(cx.listener(Self::download_from_remote))
+                })
                 .track_focus(&self.focus_handle(cx))
                 .child(
                     v_flex()

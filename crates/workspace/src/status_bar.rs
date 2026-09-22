@@ -1,12 +1,15 @@
-use crate::{ItemHandle, MultiWorkspace, Pane, SidebarSide, ToggleWorkspaceSidebar};
+use crate::{
+    ItemHandle, MultiWorkspace, Pane, SidebarSide, ToggleWorkspaceSidebar,
+    sidebar_side_context_menu,
+};
 use gpui::{
-    AnyView, App, Context, Decorations, Entity, FocusHandle, Focusable, IntoElement, ParentElement,
-    Render, Role, SharedString, Styled, Subscription, WeakEntity, Window,
+    Anchor, AnyView, App, Context, Decorations, Entity, FocusHandle, Focusable, IntoElement,
+    ParentElement, Render, Role, SharedString, Styled, Subscription, WeakEntity, Window,
 };
 use settings::{SettingsContent, update_settings_file};
 use std::{any::TypeId, sync::Arc};
 use theme::CLIENT_SIDE_DECORATION_ROUNDING;
-use ui::{ContextMenu, Divider, IconPosition, Indicator, Tooltip, prelude::*, right_click_menu};
+use ui::{ContextMenu, Divider, IconPosition, Tooltip, prelude::*, right_click_menu};
 
 /// Describes how a status-bar item can be hidden by the user.
 ///
@@ -71,7 +74,6 @@ trait StatusItemViewHandle: Send {
 struct SidebarStatus {
     open: bool,
     side: SidebarSide,
-    has_notifications: bool,
     show_toggle: bool,
 }
 
@@ -86,7 +88,6 @@ impl SidebarStatus {
                 Self {
                     open: mw.sidebar_open() && enabled,
                     side: mw.sidebar_side(cx),
-                    has_notifications: mw.sidebar_has_notifications(cx),
                     show_toggle: enabled,
                 }
             })
@@ -194,7 +195,7 @@ impl StatusBar {
             .min_w_0()
             .overflow_x_hidden()
             .when(
-                sidebar.show_toggle && sidebar.side == SidebarSide::Left,
+                sidebar.show_toggle && !sidebar.open && sidebar.side == SidebarSide::Left,
                 |this| this.child(self.render_sidebar_toggle(sidebar, cx)),
             )
             .children(self.left_items.iter().enumerate().map(|(index, item)| {
@@ -221,7 +222,7 @@ impl StatusBar {
                     }),
             )
             .when(
-                sidebar.show_toggle && sidebar.side == SidebarSide::Right,
+                sidebar.show_toggle && !sidebar.open && sidebar.side == SidebarSide::Right,
                 |this| this.child(self.render_sidebar_toggle(sidebar, cx)),
             )
     }
@@ -232,31 +233,33 @@ impl StatusBar {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let on_right = sidebar.side == SidebarSide::Right;
-        let has_notifications = sidebar.has_notifications;
-        let indicator_border = cx.theme().colors().status_bar_background;
 
-        let tooltip = if sidebar.open {
-            "Close Projects Sidebar"
-        } else {
-            "Open Projects Sidebar"
-        };
-        let toggle = IconButton::new("toggle-projects-sidebar", IconName::FolderOpen)
-            .icon_size(IconSize::Small)
-            .tab_index(0isize)
-            .aria_label(tooltip)
-            .when(has_notifications, |this| {
-                this.indicator(Indicator::dot().color(Color::Accent))
-                    .indicator_border_color(Some(indicator_border))
+        let toggle = sidebar_side_context_menu("sidebar-status-toggle-menu", cx)
+            .anchor(if on_right {
+                Anchor::BottomRight
+            } else {
+                Anchor::BottomLeft
             })
-            .tooltip(move |_, cx| {
-                Tooltip::for_action(tooltip, &ToggleWorkspaceSidebar, cx)
+            .attach(if on_right {
+                Anchor::TopRight
+            } else {
+                Anchor::TopLeft
             })
-            .on_click(move |_, window, cx| {
-                if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() {
-                    multi_workspace.update(cx, |multi_workspace, cx| {
-                        multi_workspace.toggle_sidebar(window, cx);
-                    });
-                }
+            .trigger(move |_is_active, _window, _cx| {
+                IconButton::new("toggle-workspace-sidebar", IconName::Folder)
+                    .icon_size(IconSize::Small)
+                    .tab_index(0isize)
+                    .aria_label("Open project sidebar")
+                    .tooltip(move |_, cx| {
+                        Tooltip::for_action("Open Project Sidebar", &ToggleWorkspaceSidebar, cx)
+                    })
+                    .on_click(move |_, window, cx| {
+                        if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() {
+                            multi_workspace.update(cx, |multi_workspace, cx| {
+                                multi_workspace.toggle_sidebar(window, cx);
+                            });
+                        }
+                    })
             });
 
         h_flex()

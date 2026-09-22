@@ -1,5 +1,6 @@
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder};
 use anyhow::{Ok, Result};
+use client::proto;
 use fancy_regex::{Captures, Regex, RegexBuilder};
 use gpui::Entity;
 use itertools::Itertools as _;
@@ -14,7 +15,7 @@ use std::{
 };
 use text::Anchor;
 use util::{
-    paths::PathMatcher,
+    paths::{PathMatcher, PathStyle},
     rel_path::RelPath,
 };
 
@@ -309,6 +310,57 @@ impl SearchQuery {
         is_case_sensitive.map(|c| (c, new_query))
     }
 
+    pub fn from_proto(message: proto::SearchQuery, path_style: PathStyle) -> Result<Self> {
+        let files_to_include = if message.files_to_include.is_empty() {
+            message
+                .files_to_include_legacy
+                .split(',')
+                .map(str::trim)
+                .filter(|&glob_str| !glob_str.is_empty())
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            message.files_to_include
+        };
+
+        let files_to_exclude = if message.files_to_exclude.is_empty() {
+            message
+                .files_to_exclude_legacy
+                .split(',')
+                .map(str::trim)
+                .filter(|&glob_str| !glob_str.is_empty())
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            message.files_to_exclude
+        };
+
+        if message.regex {
+            Self::regex(
+                message.query,
+                message.whole_word,
+                message.case_sensitive,
+                message.include_ignored,
+                false,
+                PathMatcher::new(files_to_include, path_style)?,
+                PathMatcher::new(files_to_exclude, path_style)?,
+                message.match_full_paths,
+                None, // search opened only don't need search remote
+            )
+        } else {
+            Self::text(
+                message.query,
+                message.whole_word,
+                message.case_sensitive,
+                message.include_ignored,
+                PathMatcher::new(files_to_include, path_style)?,
+                PathMatcher::new(files_to_exclude, path_style)?,
+                message.match_full_paths,
+                None, // search opened only don't need search remote
+            )
+        }
+    }
+
     pub fn with_replacement(mut self, new_replacement: String) -> Self {
         match self {
             Self::Text {
@@ -322,6 +374,24 @@ impl SearchQuery {
                 *replacement = Some(new_replacement);
                 self
             }
+        }
+    }
+
+    pub fn to_proto(&self) -> proto::SearchQuery {
+        let mut files_to_include = self.files_to_include().sources();
+        let mut files_to_exclude = self.files_to_exclude().sources();
+        proto::SearchQuery {
+            query: self.as_str().to_string(),
+            regex: self.is_regex(),
+            whole_word: self.whole_word(),
+            case_sensitive: self.case_sensitive(),
+            include_ignored: self.include_ignored(),
+            files_to_include: files_to_include.clone().map(ToOwned::to_owned).collect(),
+            files_to_exclude: files_to_exclude.clone().map(ToOwned::to_owned).collect(),
+            match_full_paths: self.match_full_paths(),
+            // Populate legacy fields for backwards compatibility
+            files_to_include_legacy: files_to_include.join(","),
+            files_to_exclude_legacy: files_to_exclude.join(","),
         }
     }
 

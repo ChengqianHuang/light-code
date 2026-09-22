@@ -11,7 +11,7 @@ pub use settings::{
 };
 use settings::{CommandAliasTarget, SettingsStore};
 
-#[derive(RegisterSetting)]
+#[derive(Clone, RegisterSetting)]
 pub struct WorkspaceSettings {
     pub active_pane_modifiers: ActivePanelModifiers,
     pub bottom_dock_layout: settings::BottomDockLayout,
@@ -24,6 +24,8 @@ pub struct WorkspaceSettings {
     pub restore_on_startup: settings::RestoreOnStartupBehavior,
     pub cli_default_open_behavior: settings::CliDefaultOpenBehavior,
     pub default_open_behavior: settings::DefaultOpenBehavior,
+    pub project_sidebar_enabled: bool,
+    pub project_sidebar_side: settings::ProjectSidebarSide,
     pub restore_on_file_reopen: bool,
     pub reveal_if_open: bool,
     pub drop_target_size: f32,
@@ -123,6 +125,8 @@ impl Settings for WorkspaceSettings {
             restore_on_startup: workspace.restore_on_startup.unwrap(),
             cli_default_open_behavior: workspace.cli_default_open_behavior.unwrap(),
             default_open_behavior: workspace.default_open_behavior.unwrap(),
+            project_sidebar_enabled: workspace.project_sidebar.unwrap().enabled.unwrap(),
+            project_sidebar_side: workspace.project_sidebar.unwrap().side.unwrap().into(),
             restore_on_file_reopen: workspace.restore_on_file_reopen.unwrap(),
             reveal_if_open: workspace.reveal_if_open.unwrap(),
             drop_target_size: workspace.drop_target_size.unwrap(),

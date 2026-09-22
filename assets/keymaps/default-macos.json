@@ -38,6 +38,9 @@
       "cmd-h": "zed::Hide",
       "alt-cmd-h": "zed::HideOthers",
       "cmd-m": "zed::Minimize",
+      "ctrl-cmd-z": "edit_prediction::RatePredictions",
+      "ctrl-cmd-i": "edit_prediction::ToggleMenu",
+      "ctrl-cmd-l": "lsp_tool::ToggleMenu",
       "ctrl-cmd-c": "editor::DisplayCursorNames",
       "ctrl-cmd-s": "workspace::ToggleWorktreeSecurity",
     },
@@ -210,6 +213,8 @@
     "context": "Editor && jupyter",
     "use_key_equivalents": true,
     "bindings": {
+      "ctrl-shift-enter": "repl::Run",
+      "ctrl-alt-enter": "repl::RunInPlace",
     },
   },
   {
@@ -220,6 +225,18 @@
       "cmd-alt-y": "git::ToggleStaged",
       "cmd-y": "git::StageAndNext",
       "cmd-shift-y": "git::UnstageAndNext",
+    },
+  },
+  {
+    "context": "AgentDiff",
+    "use_key_equivalents": true,
+    "bindings": {
+    },
+  },
+  {
+    "context": "Editor && editor_agent_diff",
+    "use_key_equivalents": true,
+    "bindings": {
     },
   },
   {
@@ -262,6 +279,12 @@
     },
   },
   {
+    "context": "AcpThreadSearchBar > Editor",
+    "use_key_equivalents": true,
+    "bindings": {
+    },
+  },
+  {
     "context": "AcpThread > Editor",
     "use_key_equivalents": true,
     "bindings": {
@@ -269,10 +292,28 @@
     },
   },
   {
+    "context": "AcpThread > Editor && start_of_input",
+    "use_key_equivalents": true,
+    "bindings": {
+    },
+  },
+  {
+    "context": "AcpThread > Editor && end_of_input",
+    "use_key_equivalents": true,
+    "bindings": {
+    },
+  },
+  {
     "context": "AcpThread > Editor && mode == full",
     "use_key_equivalents": true,
     "bindings": {
       "alt-enter": "editor::OpenExcerpts",
+    },
+  },
+  {
+    "context": "AcpThread > Editor && !use_modifier_to_send",
+    "use_key_equivalents": true,
+    "bindings": {
     },
   },
   {
@@ -310,6 +351,7 @@
       "alt-enter": "search::SelectAllMatches",
       "cmd-f": "search::FocusSearch",
       "cmd-alt-l": "search::ToggleSelection",
+      "cmd-shift-o": "outline::Toggle",
       "alt-cmd-f": "text_finder::Toggle",
     },
   },
@@ -523,6 +565,8 @@
     "context": "Editor && mode == full",
     "use_key_equivalents": true,
     "bindings": {
+      "cmd-shift-o": "outline::Toggle",
+      "ctrl-g": "go_to_line::Toggle",
       "cmd-shift-backspace": "editor::GoToPreviousChange",
       "cmd-shift-alt-backspace": "editor::GoToNextChange",
     },
@@ -563,6 +607,7 @@
       // "alt-cmd-o": ["projects::OpenRecent", {"create_new_window": true }],
       "alt-cmd-o": "projects::OpenRecent",
       "ctrl-r": "projects::OpenRecent",
+      "cmd-ctrl-b": "branches::OpenRecent",
       "cmd-ctrl-w": "git::Worktree",
       "ctrl-~": "workspace::NewTerminal",
       "cmd-s": "workspace::Save",
@@ -602,6 +647,7 @@
       "cmd-k cmd-t": "theme_selector::Toggle",
       "cmd-k cmd-shift-t": "theme::ToggleMode",
       "ctrl-alt-cmd-p": "settings_profile_selector::Toggle",
+      "cmd-t": "project_symbols::Toggle",
       "cmd-p": "file_finder::Toggle",
       "ctrl-shift-tab": ["tab_switcher::Toggle", { "select_last": true }],
       "ctrl-tab": "tab_switcher::Toggle",
@@ -652,7 +698,6 @@
       "left": "menu::SelectParent",
       "right": "menu::SelectChild",
       "enter": "menu::Confirm",
-      "cmd-f": "agents_sidebar::FocusSidebarFilter",
     },
   },
   {
@@ -803,8 +848,6 @@
   {
     "use_key_equivalents": true,
     "bindings": {
-      "ctrl-alt-cmd-f": "workspace::FollowNextCollaborator",
-      // TODO: Move this to a dock open action
       // Only available in debug builds: opens an element inspector for development.
       "cmd-alt-i": "dev::ToggleInspector",
       // Cycles the frame-time debug overlay between hidden, frame-time-only, and detailed modes.
@@ -1060,31 +1103,6 @@
     },
   },
   {
-    "context": "CollabPanel && not_editing",
-    "use_key_equivalents": true,
-    "bindings": {
-      "space": "menu::Confirm",
-    },
-  },
-  {
-    "context": "CollabPanel",
-    "use_key_equivalents": true,
-    "bindings": {
-    },
-  },
-  {
-    "context": "(CollabPanel && editing) > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-    },
-  },
-  {
-    "context": "ChannelModal",
-    "use_key_equivalents": true,
-    "bindings": {
-    },
-  },
-  {
     "context": "CallHierarchyPicker > Picker > Editor",
     "use_key_equivalents": true,
     "bindings": {
@@ -1114,12 +1132,6 @@
     "use_key_equivalents": true,
     "bindings": {
       "tab": "lsp_command_selector::ToggleArgumentsFocus",
-    },
-  },
-  {
-    "context": "ChannelModal > Picker > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
     },
   },
   {
@@ -1222,15 +1234,29 @@
     },
   },
   {
+    "context": "AgentPanel > Terminal",
+    "use_key_equivalents": true,
+    "bindings": {
+    },
+  },
+  {
     "context": "RatePredictionsModal",
     "use_key_equivalents": true,
     "bindings": {
+      "cmd-shift-enter": "zeta::ThumbsUpActivePrediction",
+      "cmd-shift-backspace": "zeta::ThumbsDownActivePrediction",
+      "shift-down": "zeta::NextEdit",
+      "shift-up": "zeta::PreviousEdit",
+      "right": "zeta::PreviewPrediction",
     },
   },
   {
     "context": "RatePredictionsModal > Editor",
     "use_key_equivalents": true,
     "bindings": {
+      "escape": "zeta::FocusPredictions",
+      "cmd-shift-enter": "zeta::ThumbsUpActivePrediction",
+      "cmd-shift-backspace": "zeta::ThumbsDownActivePrediction",
     },
   },
   {
@@ -1282,6 +1308,8 @@
   {
     "context": "MarkdownPreview",
     "bindings": {
+      "pageup": "markdown::ScrollPageUp",
+      "pagedown": "markdown::ScrollPageDown",
       "up": "markdown::ScrollUp",
       "down": "markdown::ScrollDown",
       "alt-up": "markdown::ScrollUpByItem",
@@ -1348,6 +1376,7 @@
       "cmd-+": ["zed::IncreaseUiFontSize", { "persist": false }],
       "cmd--": ["zed::DecreaseUiFontSize", { "persist": false }],
       "cmd-0": ["zed::ResetUiFontSize", { "persist": false }],
+      "cmd-enter": "onboarding::Finish",
     },
   },
   {
@@ -1436,6 +1465,8 @@
   {
     "context": "EditPredictionContext > Editor",
     "bindings": {
+      "alt-left": "dev::EditPredictionContextGoBack",
+      "alt-right": "dev::EditPredictionContextGoForward",
     },
   },
   {
@@ -1537,26 +1568,6 @@
     "bindings": {
       "tab": "git_graph::FocusNextTabStop",
       "shift-tab": "git_graph::FocusPreviousTabStop",
-    },
-  },
-  {
-    "context": "SkillCreator",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-w": "workspace::CloseWindow",
-      "cmd-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
-    },
-  },
-  {
-    "context": "SkillCreator > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-w": "workspace::CloseWindow",
-      "cmd-enter": "skill_creator::SaveSkill",
-      "tab": "skill_creator::FocusNextField",
-      "shift-tab": "skill_creator::FocusPreviousField",
     },
   },
 ]

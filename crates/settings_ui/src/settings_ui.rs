@@ -3,6 +3,7 @@ mod page_data;
 pub mod pages;
 
 use anyhow::{Context as _, Result};
+use cloud_api_types::OrganizationConfiguration;
 use editor::{Editor, EditorEvent};
 use futures::{StreamExt, channel::mpsc};
 use fuzzy::StringMatchCandidate;
@@ -28,7 +29,6 @@ use std::{
     collections::{HashMap, HashSet},
     num::{NonZero, NonZeroU32},
     ops::Range,
-    path::PathBuf,
     rc::Rc,
     sync::{Arc, LazyLock, RwLock},
     time::Duration,
@@ -51,7 +51,8 @@ use zed_actions::{
 
 use crate::components::{
     EnumVariantDropdown, NumberField, NumberFieldMode, NumberFieldType, SettingsInputField,
-    SettingsSectionHeader, font_picker, icon_theme_picker, text_field_a11y_state, theme_picker,
+    SettingsSectionHeader, font_picker, icon_theme_picker, render_ollama_model_picker,
+    text_field_a11y_state, theme_picker,
 };
 use crate::pages::{render_input_audio_device_dropdown, render_output_audio_device_dropdown};
 
@@ -110,7 +111,7 @@ struct SettingField<T: 'static> {
     /// organization's settings. Takes the organization configuration and the
     /// resolved settings value, and returns `Some(...)` if the organization
     /// overrides the setting, otherwise `None`.
-    organization_override: Option<()>,
+    organization_override: Option<fn(&OrganizationConfiguration) -> Option<&T>>,
 
     /// A json-path-like string that gives a unique-ish string that identifies
     /// where in the JSON the setting is defined.
@@ -259,8 +260,16 @@ impl<T: PartialEq + Clone + Send + Sync + 'static> AnySettingField for SettingFi
     }
 
     fn is_overridden_by_organization(&self, cx: &App) -> bool {
-        let _ = cx;
-        false
+        let Some(org_override) = self.organization_override else {
+            return false;
+        };
+
+        let user_store = AppState::global(cx).user_store.read(cx);
+        let Some(org_config) = user_store.current_organization_configuration() else {
+            return false;
+        };
+
+        (org_override)(&org_config).is_some()
     }
 }
 
@@ -536,6 +545,7 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::DockSide>(render_dropdown)
         .add_basic_renderer::<settings::TerminalDockPosition>(render_dropdown)
         .add_basic_renderer::<settings::DockPosition>(render_dropdown)
+        .add_basic_renderer::<settings::SidebarDockPosition>(render_dropdown)
         .add_basic_renderer::<settings::GitGutterSetting>(render_dropdown)
         .add_basic_renderer::<settings::GitHunkStyleSetting>(render_dropdown)
         .add_basic_renderer::<settings::GitDiffBaseSetting>(render_dropdown)
@@ -571,6 +581,7 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::EditPredictionPromptFormatContent>(render_dropdown)
         .add_basic_renderer::<settings::EditPredictionDataCollectionChoice>(render_dropdown)
         .add_basic_renderer::<f32>(render_editable_number_field)
+        .add_basic_renderer::<settings::AutoCompactThreshold>(render_text_field)
         .add_basic_renderer::<u32>(render_editable_number_field)
         .add_basic_renderer::<u64>(render_editable_number_field)
         .add_basic_renderer::<usize>(render_editable_number_field)
@@ -593,6 +604,7 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::UseSystemClipboard>(render_dropdown)
         .add_basic_renderer::<settings::VimInsertModeCursorShape>(render_dropdown)
         .add_basic_renderer::<settings::SteppingGranularity>(render_dropdown)
+        .add_basic_renderer::<settings::ThinkingBlockDisplay>(render_dropdown)
         .add_basic_renderer::<settings::ImageFileSizeUnit>(render_dropdown)
         .add_basic_renderer::<settings::StatusStyle>(render_dropdown)
         .add_basic_renderer::<settings::GitPanelClickBehavior>(render_dropdown)
@@ -624,6 +636,7 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::WindowButtonLayoutContentDiscriminants>(render_dropdown)
         .add_basic_renderer::<settings::ScanSymlinksSetting>(render_dropdown)
         .add_basic_renderer::<settings::FontSize>(render_editable_number_field)
+        .add_basic_renderer::<settings::OllamaModelName>(render_ollama_model_picker)
         .add_basic_renderer::<settings::SemanticTokens>(render_dropdown)
         .add_basic_renderer::<settings::DocumentFoldingRanges>(render_dropdown)
         .add_basic_renderer::<settings::DocumentSymbols>(render_dropdown)
@@ -835,7 +848,7 @@ fn open_settings_editor_with(
         cx.open_window(
             WindowOptions {
                 titlebar: Some(TitlebarOptions {
-                    title: Some("Light Code — Settings".into()),
+                    title: Some("Zed — Settings".into()),
                     appears_transparent: true,
                     traffic_light_position: Some(point(px(12.0), px(12.0))),
                 }),
@@ -922,13 +935,7 @@ pub struct SettingsWindow {
     search_index: Option<Arc<SearchIndex>>,
     list_state: ListState,
     shown_errors: HashSet<String>,
-    pub(crate) hidden_deleted_skill_directory_paths: HashSet<PathBuf>,
-    pub(crate) regex_validation_error: Option<String>,
-    pub(crate) sandbox_host_validation_error: Option<String>,
     last_copied_link_path: Option<&'static str>,
-    /// Directory path of the skill whose share link was most recently copied,
-    /// used to show a transient "copied" checkmark on its share button.
-    pub(crate) last_copied_skill_directory_path: Option<PathBuf>,
 }
 
 struct SearchDocument {
@@ -1586,7 +1593,6 @@ impl PartialEq for SettingItem {
 #[derive(Clone, PartialEq, Default)]
 enum SubPageType {
     Language,
-    SkillCreator,
     #[default]
     Other,
 }
@@ -1908,12 +1914,8 @@ impl SettingsWindow {
                 .tab_stop(false),
             search_index: None,
             shown_errors: HashSet::default(),
-            hidden_deleted_skill_directory_paths: HashSet::default(),
-            regex_validation_error: None,
-            sandbox_host_validation_error: None,
             list_state,
             last_copied_link_path: None,
-            last_copied_skill_directory_path: None,
         };
 
         this.fetch_files(window, cx);
@@ -2530,10 +2532,6 @@ impl SettingsWindow {
     }
 
     fn open_navbar_entry_page(&mut self, navbar_entry: usize) {
-        // Navigating to another page dismisses the transient "copied share
-        // link" checkmark shown on a Skills page row.
-        self.last_copied_skill_directory_path = None;
-
         if !self.is_nav_entry_visible(navbar_entry) {
             self.open_first_nav_page();
         }
@@ -2642,8 +2640,7 @@ impl SettingsWindow {
 
     /// Changes the current settings file like [`Self::change_file`], but keeps
     /// the currently open sub-page stack when every sub-page in it is
-    /// available in the new file's scope (e.g. switching a Skills sub-page
-    /// between the user scope and a project scope).
+    /// available in the new file's scope.
     fn change_file_in_sub_page(
         &mut self,
         ix: usize,
@@ -2658,8 +2655,6 @@ impl SettingsWindow {
         if let SettingsUiFile::Project((_, _)) = &self.current_file {
             telemetry::event!("Setting Project Clicked");
         }
-
-        self.last_copied_skill_directory_path = None;
 
         let sub_page_stack = std::mem::take(&mut self.sub_page_stack);
         self.build_ui(window, cx);
@@ -4097,7 +4092,6 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<SettingsWindow>,
     ) {
-        self.sandbox_host_validation_error = None;
         self.sub_page_stack
             .push(SubPage::new(sub_page_link, section_header));
         self.content_focus_handle.focus_handle(cx).focus(window, cx);
@@ -4121,7 +4115,6 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<SettingsWindow>,
     ) {
-        self.regex_validation_error = None;
         let sub_page_link = SubPageLink {
             title: title.into(),
             r#type: SubPageType::default(),
@@ -4207,17 +4200,9 @@ impl SettingsWindow {
     }
 
     pub(crate) fn pop_sub_page(&mut self, window: &mut Window, cx: &mut Context<SettingsWindow>) {
-        self.regex_validation_error = None;
-        self.sandbox_host_validation_error = None;
         self.sub_page_stack.pop();
         self.content_focus_handle.focus_handle(cx).focus(window, cx);
         cx.notify();
-    }
-
-    pub(crate) fn active_project(&self, cx: &App) -> Option<Entity<Project>> {
-        let original_window = self.original_window.as_ref()?;
-        let multi_workspace = original_window.read(cx).ok()?;
-        Some(multi_workspace.workspace().read(cx).project().clone())
     }
 
     fn focus_file_at_index(&mut self, index: usize, window: &mut Window, cx: &mut App) {
@@ -4629,17 +4614,21 @@ fn get_current_value<'a, T>(
     settings_store: &'a SettingsStore,
     file: &SettingsUiFile,
     field: &'a SettingField<T>,
-    _cx: &'a App,
+    cx: &'a App,
 ) -> Option<CurrentSettingsValue<'a, T>> {
-    // Organization configuration overrides were served by the cloud account
-    // system, which this fork does not have; settings come straight from the
-    // local settings files.
+    let user_store = AppState::global(cx).user_store.read(cx);
+    let org_config = user_store.current_organization_configuration();
+
     let (_file, value) = settings_store.get_value_from_file(file.to_settings(), field.pick);
     let value = value?;
 
+    let org_value = org_config
+        .zip(field.organization_override)
+        .and_then(|(org_config, org_override)| (org_override)(org_config));
+
     Some(CurrentSettingsValue {
-        disabled: false,
-        value: &value,
+        disabled: org_value.is_some(),
+        value: org_value.unwrap_or(&value),
     })
 }
 
@@ -5059,86 +5048,6 @@ fn render_icon_theme_picker(
 pub mod test {
 
     use super::*;
-    use fs::Fs;
-    use gpui::TestAppContext;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    struct ProjectSettingsTestSetup {
-        fs: Arc<dyn Fs>,
-        project: Entity<Project>,
-        worktree: Entity<Worktree>,
-        worktree_id: WorktreeId,
-        rel_path: Arc<RelPath>,
-        project_path: ProjectPath,
-    }
-
-    async fn init_test(
-        cx: &mut TestAppContext,
-        initial_settings: Option<&str>,
-    ) -> ProjectSettingsTestSetup {
-        let app_state = cx.update(|cx| {
-            let settings_store = settings::SettingsStore::test(cx);
-            cx.set_global(settings_store);
-            theme_settings::init(theme::LoadThemes::JustBase, cx);
-            let queue = ProjectSettingsUpdateQueue::new(cx);
-            cx.set_global(queue);
-            AppState::test(cx)
-        });
-
-        let fs = app_state.fs.as_fake();
-        match initial_settings {
-            Some(settings_json) => {
-                fs.insert_tree(
-                    "/project",
-                    serde_json::json!({ ".zed": { "settings.json": settings_json } }),
-                )
-                .await;
-            }
-            None => {
-                fs.insert_tree("/project", serde_json::json!({})).await;
-            }
-        }
-
-        let project = cx.update(|cx| {
-            Project::local(
-                app_state.http_client.clone(),
-                app_state.node_runtime.clone(),
-                app_state.languages.clone(),
-                app_state.fs.clone(),
-                None,
-                project::LocalProjectFlags::default(),
-                cx,
-            )
-        });
-        let (worktree, _) = project
-            .update(cx, |project, cx| {
-                project.find_or_create_worktree("/project", true, cx)
-            })
-            .await
-            .unwrap();
-        worktree
-            .read_with(cx, |tree, _| {
-                tree.as_local().unwrap().scan_complete()
-            })
-            .await;
-        let worktree_id = worktree.read_with(cx, |tree, _| tree.id());
-        let rel_path: Arc<RelPath> = {
-            let rel_path_buf = RelPath::new_test(".zed/settings.json").into_owned();
-            Arc::from(rel_path_buf)
-        };
-        let project_path = ProjectPath {
-            worktree_id,
-            path: rel_path.clone(),
-        };
-        ProjectSettingsTestSetup {
-            fs: app_state.fs.clone(),
-            project,
-            worktree,
-            worktree_id,
-            rel_path,
-            project_path,
-        }
-    }
 
     impl SettingsWindow {
         fn navbar_entry(&self) -> usize {
@@ -5188,11 +5097,7 @@ pub mod test {
                 search_index: None,
                 list_state: ListState::new(0, gpui::ListAlignment::Top, px(0.0)),
                 shown_errors: HashSet::default(),
-                hidden_deleted_skill_directory_paths: HashSet::default(),
-                regex_validation_error: None,
-                sandbox_host_validation_error: None,
                 last_copied_link_path: None,
-                last_copied_skill_directory_path: None,
             }
         }
     }
@@ -5317,11 +5222,7 @@ pub mod test {
             search_index: None,
             list_state: ListState::new(0, gpui::ListAlignment::Top, px(0.0)),
             shown_errors: HashSet::default(),
-            hidden_deleted_skill_directory_paths: HashSet::default(),
-            regex_validation_error: None,
-            sandbox_host_validation_error: None,
             last_copied_link_path: None,
-            last_copied_skill_directory_path: None,
         };
 
         settings_window.build_filter_table();
@@ -5643,8 +5544,9 @@ pub mod test {
 
         let project1 = cx.update(|cx| {
             Project::local(
-                app_state.http_client.clone(),
+                app_state.client.clone(),
                 app_state.node_runtime.clone(),
+                app_state.user_store.clone(),
                 app_state.languages.clone(),
                 app_state.fs.clone(),
                 None,
@@ -5668,8 +5570,9 @@ pub mod test {
 
         let project2 = cx.update(|cx| {
             Project::local(
-                app_state.http_client.clone(),
+                app_state.client.clone(),
                 app_state.node_runtime.clone(),
+                app_state.user_store.clone(),
                 app_state.languages.clone(),
                 app_state.fs.clone(),
                 None,
@@ -5812,8 +5715,9 @@ pub mod test {
 
         let project1 = cx.update(|cx| {
             Project::local(
-                app_state.http_client.clone(),
+                app_state.client.clone(),
                 app_state.node_runtime.clone(),
+                app_state.user_store.clone(),
                 app_state.languages.clone(),
                 app_state.fs.clone(),
                 None,
@@ -5861,8 +5765,9 @@ pub mod test {
 
         let project2 = cx.update(|_, cx| {
             Project::local(
-                app_state.http_client.clone(),
+                app_state.client.clone(),
                 app_state.node_runtime.clone(),
+                app_state.user_store.clone(),
                 app_state.languages.clone(),
                 app_state.fs.clone(),
                 None,
@@ -5936,6 +5841,74 @@ pub mod test {
             );
         });
     }
+}
+
+#[cfg(test)]
+mod project_settings_update_tests {
+    use super::*;
+    use fs::{FakeFs, Fs as _};
+    use gpui::TestAppContext;
+    use project::Project;
+    use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct TestSetup {
+        fs: Arc<FakeFs>,
+        project: Entity<Project>,
+        worktree_id: WorktreeId,
+        worktree: WeakEntity<Worktree>,
+        rel_path: Arc<RelPath>,
+        project_path: ProjectPath,
+    }
+
+    async fn init_test(cx: &mut TestAppContext, initial_settings: Option<&str>) -> TestSetup {
+        cx.update(|cx| {
+            let store = settings::SettingsStore::test(cx);
+            cx.set_global(store);
+            theme_settings::init(theme::LoadThemes::JustBase, cx);
+            editor::init(cx);
+            menu::init();
+            let queue = ProjectSettingsUpdateQueue::new(cx);
+            cx.set_global(queue);
+        });
+
+        let fs = FakeFs::new(cx.executor());
+        let tree = if let Some(settings_content) = initial_settings {
+            json!({
+                ".zed": {
+                    "settings.json": settings_content
+                },
+                "src": { "main.rs": "" }
+            })
+        } else {
+            json!({ "src": { "main.rs": "" } })
+        };
+        fs.insert_tree("/project", tree).await;
+
+        let project = Project::test(fs.clone(), ["/project".as_ref()], cx).await;
+
+        let (worktree_id, worktree) = project.read_with(cx, |project, cx| {
+            let worktree = project.worktrees(cx).next().unwrap();
+            (worktree.read(cx).id(), worktree.downgrade())
+        });
+
+        let rel_path: Arc<RelPath> = RelPath::from_unix_str(".zed/settings.json")
+            .expect("valid path")
+            .into_arc();
+        let project_path = ProjectPath {
+            worktree_id,
+            path: rel_path.clone(),
+        };
+
+        TestSetup {
+            fs,
+            project,
+            worktree_id,
+            worktree,
+            rel_path,
+            project_path,
+        }
+    }
 
     #[gpui::test]
     async fn test_creates_settings_file_if_missing(cx: &mut TestAppContext) {
@@ -5946,7 +5919,7 @@ pub mod test {
             rel_path: setup.rel_path.clone(),
             settings_window: WeakEntity::new_invalid(),
             project: setup.project.downgrade(),
-            worktree: setup.worktree.downgrade(),
+            worktree: setup.worktree,
             update: Box::new(|content, _cx| {
                 content.project.all_languages.defaults.tab_size = Some(NonZeroU32::new(4).unwrap());
             }),
@@ -5980,7 +5953,7 @@ pub mod test {
             rel_path: setup.rel_path.clone(),
             settings_window: WeakEntity::new_invalid(),
             project: setup.project.downgrade(),
-            worktree: setup.worktree.downgrade(),
+            worktree: setup.worktree,
             update: Box::new(|content, _cx| {
                 content.project.all_languages.defaults.tab_size = Some(NonZeroU32::new(8).unwrap());
             }),
@@ -6018,7 +5991,7 @@ pub mod test {
                 rel_path: setup.rel_path.clone(),
                 settings_window: WeakEntity::new_invalid(),
                 project: setup.project.downgrade(),
-                worktree: setup.worktree.downgrade(),
+                worktree: setup.worktree.clone(),
                 update: Box::new(move |content, _cx| {
                     update_order.lock().unwrap().push(i);
                     content.project.all_languages.defaults.tab_size =
@@ -6062,7 +6035,7 @@ pub mod test {
                 rel_path: setup.rel_path.clone(),
                 settings_window: WeakEntity::new_invalid(),
                 project: setup.project.downgrade(),
-                worktree: setup.worktree.downgrade(),
+                worktree: setup.worktree.clone(),
                 update: Box::new(move |content, _cx| {
                     successful_updates.fetch_add(1, Ordering::SeqCst);
                     content.project.all_languages.defaults.tab_size =
@@ -6078,7 +6051,7 @@ pub mod test {
                 rel_path: setup.rel_path.clone(),
                 settings_window: WeakEntity::new_invalid(),
                 project: WeakEntity::new_invalid(),
-                worktree: setup.worktree.downgrade(),
+                worktree: setup.worktree.clone(),
                 update: Box::new(|content, _cx| {
                     content.project.all_languages.defaults.tab_size =
                         Some(NonZeroU32::new(99).unwrap());
@@ -6094,7 +6067,7 @@ pub mod test {
                 rel_path: setup.rel_path.clone(),
                 settings_window: WeakEntity::new_invalid(),
                 project: setup.project.downgrade(),
-                worktree: setup.worktree.downgrade(),
+                worktree: setup.worktree.clone(),
                 update: Box::new(move |content, _cx| {
                     successful_updates.fetch_add(1, Ordering::SeqCst);
                     content.project.all_languages.defaults.tab_size =
@@ -6209,7 +6182,7 @@ pub mod test {
             rel_path: setup.rel_path.clone(),
             settings_window: settings_window.downgrade(),
             project: setup.project.downgrade(),
-            worktree: setup.worktree.downgrade(),
+            worktree: setup.worktree.clone(),
             update: Box::new(|content, _cx| {
                 content.project.all_languages.defaults.tab_size = Some(NonZeroU32::new(4).unwrap());
             }),

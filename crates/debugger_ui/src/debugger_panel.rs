@@ -28,6 +28,7 @@ use language::Buffer;
 use project::debugger::session::{Session, SessionQuirks, SessionState, SessionStateEvent};
 use project::{DebugScenarioContext, Fs, ProjectPath, TaskSourceKind, WorktreeId};
 use project::{Project, debugger::session::ThreadStatus};
+use rpc::proto::{self};
 use settings::Settings;
 use std::sync::Arc;
 use task::{DebugScenario, SharedTaskContext};
@@ -1548,6 +1549,10 @@ impl Panel for DebugPanel {
 
     fn default_size(&self, _window: &Window, _: &App) -> Pixels {
         px(300.)
+    }
+
+    fn remote_id() -> Option<proto::PanelId> {
+        Some(proto::PanelId::DebugPanel)
     }
 
     fn icon(&self, _window: &Window, cx: &App) -> Option<IconName> {

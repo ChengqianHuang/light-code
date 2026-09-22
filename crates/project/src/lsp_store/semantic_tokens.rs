@@ -1,5 +1,6 @@
 use std::{ops::Range, slice::ChunksExact, sync::Arc};
 
+use anyhow::Result;
 
 use clock::Global;
 use collections::{HashMap, HashSet};
@@ -7,20 +8,22 @@ use futures::{
     FutureExt as _,
     future::{Shared, join_all},
 };
-use gpui::{App, AppContext, Context, Entity, ReadGlobal as _, SharedString, Task};
+use gpui::{App, AppContext, AsyncApp, Context, Entity, ReadGlobal as _, SharedString, Task};
 use language::{Buffer, LanguageName, language_settings::all_language_settings};
 use lsp::LanguageServerId;
+use rpc::{TypedEnvelope, proto};
 use settings::{
     DefaultSemanticTokenRules, SemanticTokenRule, SemanticTokenRules, Settings as _, SettingsStore,
 };
 use smol::future::yield_now;
 
 use text::{Anchor, Bias, OffsetUtf16, PointUtf16, Unclipped};
+use util::ResultExt as _;
 
 use crate::{
     LanguageServerToQuery, LspStore, LspStoreEvent,
     lsp_command::{
-        SemanticTokensDelta, SemanticTokensEdit, SemanticTokensFull,
+        LspCommand, SemanticTokensDelta, SemanticTokensEdit, SemanticTokensFull,
         SemanticTokensResponse,
     },
     lsp_store::{
@@ -285,7 +288,59 @@ impl LspStore {
         for_server: Option<LanguageServerId>,
         cx: &mut Context<Self>,
     ) -> Task<Option<HashMap<LanguageServerId, SemanticTokensResponse>>> {
-        {
+        if let Some((client, upstream_project_id)) = self.upstream_client() {
+            let request = SemanticTokensFull { for_server };
+            if !self.is_capable_for_proto_request(buffer, &request, cx) {
+                return Task::ready(None);
+            }
+
+            let request_timeout = ProjectSettings::get_global(cx)
+                .global_lsp_settings
+                .get_request_timeout();
+            let request_task = client.request_lsp(
+                upstream_project_id,
+                None,
+                request_timeout,
+                cx.background_executor().clone(),
+                request.to_proto(upstream_project_id, buffer.read(cx)),
+            );
+            let buffer = buffer.clone();
+            cx.spawn(async move |weak_lsp_store, cx| {
+                let lsp_store = weak_lsp_store.upgrade()?;
+                let tokens = join_all(
+                    request_task
+                        .await
+                        .log_err()
+                        .flatten()
+                        .map(|response| response.payload)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|response| {
+                            let server_id = LanguageServerId::from_proto(response.server_id);
+                            let response = request.response_from_proto(
+                                response.response,
+                                lsp_store.clone(),
+                                buffer.clone(),
+                                cx.clone(),
+                            );
+                            async move {
+                                match response.await {
+                                    Ok(tokens) => Some((server_id, tokens)),
+                                    Err(e) => {
+                                        log::error!("Failed to query remote semantic tokens for server {server_id:?}: {e:#}");
+                                        None
+                                    }
+                                }
+                            }
+                        }),
+                )
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
+                Some(tokens)
+            })
+        } else {
             let full_request = SemanticTokensFull { for_server: None };
             let token_tasks = self
                 .language_server_ids_for_request(buffer, &full_request, cx)
@@ -369,6 +424,29 @@ impl LspStore {
             }
         }
         cx.emit(LspStoreEvent::RefreshSemanticTokens { server_id });
+        if let Some((client, project_id)) = self.downstream_client.as_ref() {
+            client
+                .send(proto::RefreshSemanticTokens {
+                    project_id: *project_id,
+                    server_id: server_id.to_proto(),
+                    request_id: Some(super::next_wire_refresh_request_id()),
+                })
+                .log_err();
+        }
+    }
+
+    pub(crate) async fn handle_refresh_semantic_tokens(
+        lsp_store: Entity<Self>,
+        envelope: TypedEnvelope<proto::RefreshSemanticTokens>,
+        mut cx: AsyncApp,
+    ) -> Result<proto::Ack> {
+        lsp_store.update(&mut cx, |lsp_store, cx| {
+            lsp_store.refresh_semantic_tokens(
+                LanguageServerId::from_proto(envelope.payload.server_id),
+                cx,
+            );
+        });
+        Ok(proto::Ack {})
     }
 
     #[cfg(any(test, feature = "test-support"))]

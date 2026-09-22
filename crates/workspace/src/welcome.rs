@@ -4,6 +4,7 @@ use crate::{
     item::{Item, ItemEvent},
     persistence::WorkspaceDb,
 };
+use agent_settings::AgentSettings;
 use git::Clone as GitClone;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
@@ -266,6 +267,7 @@ impl WelcomePage {
                     .await
                     .log_err()
                     .unwrap_or_default();
+
                 this.update(cx, |this, cx| {
                     this.recent_workspaces = Some(workspaces);
                     cx.notify();
@@ -387,12 +389,15 @@ impl WelcomePage {
         &self,
         project_index: usize,
         tab_index: usize,
-        _location: &SerializedWorkspaceLocation,
+        location: &SerializedWorkspaceLocation,
         paths: &PathList,
     ) -> impl IntoElement {
         let name = project_name(paths);
 
-        let (icon, title) = (IconName::Folder, name);
+        let (icon, title) = match location {
+            SerializedWorkspaceLocation::Local => (IconName::Folder, name),
+            SerializedWorkspaceLocation::Remote(_) => (IconName::Server, name),
+        };
 
         SectionButton::new(
             title,
@@ -412,7 +417,7 @@ impl Render for WelcomePage {
         let first_section_entries = first_section.entries.len();
         let mut next_tab_index = first_section_entries + second_section.entries.len();
 
-        let ai_enabled = false;
+        let ai_enabled = AgentSettings::get_global(cx).enabled(cx);
 
         let recent_projects = self
             .recent_workspaces
@@ -443,9 +448,9 @@ impl Render for WelcomePage {
         };
 
         let welcome_label = if self.fallback_to_recent_projects {
-            "Welcome back to Light Code"
+            "Welcome back to Zed"
         } else {
-            "Welcome to Light Code"
+            "Welcome to Zed"
         };
 
         h_flex()
@@ -475,7 +480,7 @@ impl Render for WelcomePage {
                             .child(Vector::square(VectorName::ZedLogo, rems_from_px(45_f32)))
                             .child(
                                 v_flex().child(Headline::new(welcome_label)).child(
-                                    Label::new("A lightweight, simple code editor")
+                                    Label::new("The editor for what's next")
                                         .size(LabelSize::Small)
                                         .color(Color::Muted)
                                         .italic(),

@@ -674,7 +674,8 @@ mod tests {
     async fn test_no_suggestion_while_install_is_pending(cx: &mut TestAppContext) {
         let app_state = init_test(cx);
         app_state
-            .http_client
+            .client
+            .http_client()
             .as_fake()
             .replace_handler(|_, _| std::future::pending());
         cx.update(|cx| {
@@ -938,7 +939,7 @@ mod tests {
             extension_host::init(
                 Arc::new(ExtensionHostProxy::new()),
                 app_state.fs.clone(),
-                app_state.http_client.clone(),
+                app_state.client.clone(),
                 app_state.node_runtime.clone(),
                 cx,
             );

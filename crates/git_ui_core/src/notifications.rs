@@ -1,8 +1,10 @@
 use editor::Editor;
 use gpui::{App, Context, Entity, SharedString};
 use language::Buffer;
+use notifications::status_toast::StatusToast;
+use proto::RpcError;
 use ui::prelude::*;
-use workspace::{Toast, Workspace, notifications::NotificationId};
+use workspace::Workspace;
 
 pub fn open_output(
     operation: impl Into<SharedString>,
@@ -38,7 +40,7 @@ pub fn show_error_toast(
     cx: &mut App,
 ) {
     let action = action.into();
-    let message = e.to_string().trim().to_string();
+    let message = format_git_error_toast_message(&e);
     if message
         .matches(git::repository::REMOTE_CANCELLED_BY_USER)
         .next()
@@ -47,20 +49,44 @@ pub fn show_error_toast(
     } else {
         cx.defer(move |cx| {
             workspace.update(cx, |workspace, cx| {
-                struct GitErrorToast;
-                workspace.show_toast(
-                    Toast::new(
-                        NotificationId::unique::<GitErrorToast>(),
-                        format!("Git {action} failed: {message}"),
-                    ),
-                    cx,
-                );
+                let workspace_weak = cx.weak_entity();
+                let toast = StatusToast::new(format!("git {} failed", action), cx, |this, _cx| {
+                    this.icon(
+                        Icon::new(IconName::XCircle)
+                            .size(IconSize::Small)
+                            .color(Color::Error),
+                    )
+                    .action("View Log", move |window, cx| {
+                        let message = message.clone();
+                        let action = action.clone();
+                        workspace_weak
+                            .update(cx, move |workspace, cx| {
+                                open_output(action, workspace, &message, window, cx)
+                            })
+                            .ok();
+                    })
+                });
+                workspace.toggle_status_toast(toast, cx)
             });
         });
     }
 }
 
-#[cfg(all(test, any()))]
+fn rpc_error_raw_message_from_chain(error: &anyhow::Error) -> Option<&str> {
+    error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<RpcError>().map(RpcError::raw_message))
+}
+
+fn format_git_error_toast_message(error: &anyhow::Error) -> String {
+    if let Some(message) = rpc_error_raw_message_from_chain(error) {
+        message.trim().to_string()
+    } else {
+        error.to_string().trim().to_string()
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

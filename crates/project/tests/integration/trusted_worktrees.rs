@@ -28,7 +28,7 @@ fn init_trust_global(
 ) -> Entity<TrustedWorktreesStore> {
     cx.update(|cx| {
         init(DbTrustedPaths::default(), cx);
-        track_worktree_trust(worktree_store, cx);
+        track_worktree_trust(worktree_store, None, None, None, cx);
         TrustedWorktrees::try_get_global(cx).expect("global should be set")
     })
 }

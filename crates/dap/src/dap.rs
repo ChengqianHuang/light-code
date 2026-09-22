@@ -2,6 +2,7 @@ pub mod adapters;
 pub mod client;
 pub mod debugger_settings;
 pub mod inline_value;
+pub mod proto_conversions;
 mod registry;
 pub mod transport;
 

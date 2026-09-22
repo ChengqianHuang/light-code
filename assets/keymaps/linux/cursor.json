@@ -4,22 +4,12 @@
     "context": "Workspace",
     "use_key_equivalents": true,
     "bindings": {
-      "ctrl-i": "agent::ToggleFocus",
-      "ctrl-shift-i": "agent::ToggleFocus",
-      "ctrl-l": "agent::ToggleFocus",
-      "ctrl-shift-l": "agent::ToggleFocus",
-      "ctrl-shift-j": "agent::OpenSettings",
     },
   },
   {
     "context": "Editor && mode == full",
     "use_key_equivalents": true,
     "bindings": {
-      "ctrl-i": "agent::ToggleFocus",
-      "ctrl-shift-i": "agent::ToggleFocus",
-      "ctrl-shift-l": "agent::AddSelectionToThread", // In cursor uses "Ask" mode
-      "ctrl-l": "agent::AddSelectionToThread", // In cursor uses "Agent" mode
-      "ctrl-k": "assistant::InlineAssist",
       "shift-alt-h": "call_hierarchy::ShowIncomingCalls",
     },
   },
@@ -42,12 +32,8 @@
       "ctrl-l": "workspace::ToggleRightDock",
       "ctrl-shift-l": "workspace::ToggleRightDock",
       "ctrl-w": "workspace::ToggleRightDock", // technically should close chat
-      "ctrl-.": "agent::ToggleProfileSelector",
-      "ctrl-/": "agent::ToggleModelSelector",
       "ctrl-shift-backspace": "editor::Cancel",
-      "ctrl-r": "agent::NewThread",
       "ctrl-shift-v": "editor::Paste",
-      // "escape": "agent::ToggleFocus"
       ///// Enable when Zed supports multiple thread tabs
       // "ctrl-t": // new thread tab
       // "ctrl-[": // next thread tab
@@ -61,8 +47,6 @@
     "context": "Editor && editor_agent_diff",
     "use_key_equivalents": true,
     "bindings": {
-      "ctrl-enter": "agent::KeepAll",
-      "ctrl-backspace": "agent::RejectAll",
     },
   },
   {
@@ -77,7 +61,6 @@
     "context": "Terminal",
     "use_key_equivalents": true,
     "bindings": {
-      "ctrl-k": "assistant::InlineAssist",
     },
   },
   {

@@ -14,6 +14,7 @@
 pub mod actions;
 pub mod blink_manager;
 mod bracket_colorization;
+mod clangd_ext;
 pub mod code_context_menus;
 mod code_lens;
 pub mod display_map;
@@ -40,6 +41,7 @@ mod mouse_context_menu;
 pub mod movement;
 mod persistence;
 mod runnables;
+mod rust_analyzer_ext;
 pub mod scroll;
 mod selections_collection;
 pub mod semantic_tokens;
@@ -136,6 +138,7 @@ use ::git::{Blame, status::FileStatus};
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, BuildError};
 use anyhow::{Context as _, Result, anyhow, bail};
 use blink_manager::BlinkManager;
+use client::{Collaborator, ParticipantIndex, parse_zed_link};
 use clock::ReplicaId;
 use code_context_menus::{
     AvailableCodeAction, CodeActionContents, CodeActionsItem, CodeActionsMenu, CodeContextMenu,
@@ -228,16 +231,6 @@ use project::{
 use rand::seq::SliceRandom;
 use regex::Regex;
 use rpc::{ErrorCode, ErrorExt, proto::PeerId};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Collaborator {
-    pub peer_id: PeerId,
-    pub replica_id: ReplicaId,
-    pub user_id: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParticipantIndex(pub u32);
 use scroll::{Autoscroll, ScrollAnchor, ScrollManager, SharedScrollAnchor};
 use selections_collection::{MutableSelectionsCollection, SelectionsCollection};
 use serde::{Deserialize, Serialize};
@@ -2070,6 +2063,14 @@ impl Editor {
                 project,
                 window,
                 |editor, _, event, window, cx| match event {
+                    project::Event::RemoteIdChanged(Some(_))
+                    | project::Event::Reshared
+                    | project::Event::HostReshared => {
+                        // The per-change selection broadcast is skipped while the
+                        // project is unshared, so re-publish current selections
+                        // once it becomes (re)shared.
+                        editor.republish_active_selections(window, cx);
+                    }
                     project::Event::RefreshCodeLens { .. } => {
                         editor.refresh_code_lenses(None, window, cx);
                     }
@@ -2361,7 +2362,7 @@ impl Editor {
             semantics_provider: project
                 .as_ref()
                 .map(|project| Rc::new(project.downgrade()) as _),
-            collaboration_hub: None,
+            collaboration_hub: project.clone().map(|project| Box::new(project) as _),
             project,
             blink_manager: blink_manager.clone(),
             cursor_animations: CursorAnimationStates::default(),
@@ -10013,6 +10014,15 @@ impl Editor {
 
                 cx.emit(EditorEvent::BufferEdited);
                 cx.emit(SearchEvent::MatchesInvalidated);
+
+                let Some(project) = &self.project else { return };
+                let (telemetry, is_via_ssh) = {
+                    let project = project.read(cx);
+                    let telemetry = project.client().telemetry().clone();
+                    let is_via_ssh = project.is_via_remote_server();
+                    (telemetry, is_via_ssh)
+                };
+                telemetry.log_edit_event("editor", is_via_ssh);
             }
             multi_buffer::Event::BufferRangesUpdated {
                 buffer,
@@ -10706,7 +10716,7 @@ impl Editor {
             .language_settings(cx)
             .show_edit_predictions;
 
-        let _project = project.read(cx);
+        let project = project.read(cx);
         let event_type = reported_event.event_type();
 
         if let ReportEditorEvent::Saved { auto_saved } = reported_event {
@@ -10718,7 +10728,7 @@ impl Editor {
                 copilot_enabled,
                 copilot_enabled_for_language,
                 edit_predictions_provider,
-                is_via_ssh = false,
+                is_via_ssh = project.is_via_remote_server(),
             );
         } else {
             telemetry::event!(
@@ -10728,7 +10738,7 @@ impl Editor {
                 copilot_enabled,
                 copilot_enabled_for_language,
                 edit_predictions_provider,
-                is_via_ssh = false,
+                is_via_ssh = project.is_via_remote_server(),
             );
         };
     }
@@ -11699,6 +11709,30 @@ pub trait CollaborationHub {
     /// `O(selections)` and pure overhead when nobody is observing.
     fn should_broadcast_selections(&self, _: &App) -> bool {
         true
+    }
+}
+
+impl CollaborationHub for Entity<Project> {
+    fn collaborators<'a>(&self, cx: &'a App) -> &'a HashMap<PeerId, Collaborator> {
+        self.read(cx).collaborators()
+    }
+
+    fn should_broadcast_selections(&self, cx: &App) -> bool {
+        // `is_shared()` is true for a host that has shared the project and for a
+        // collab guest, and stays correct even before peer-join notifications
+        // have propagated locally (unlike a live collaborator count). A purely
+        // local project has no audience, so selections need not be broadcast.
+        self.read(cx).is_shared()
+    }
+
+    fn user_participant_indices<'a>(&self, cx: &'a App) -> &'a HashMap<u64, ParticipantIndex> {
+        self.read(cx).user_store().read(cx).participant_indices()
+    }
+
+    fn user_names(&self, cx: &App) -> HashMap<u64, SharedString> {
+        let this = self.read(cx);
+        let user_ids = this.collaborators().values().map(|c| c.user_id);
+        this.user_store().read(cx).participant_names(user_ids, cx)
     }
 }
 
