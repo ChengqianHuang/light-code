@@ -1,8 +1,6 @@
 use gpui::{Action as _, App};
 use itertools::Itertools as _;
-use settings::{
-    EditPredictionDataCollectionChoice, LanguageSettingsContent, SemanticTokens, SettingsContent,
-};
+use settings::{LanguageSettingsContent, SemanticTokens, SettingsContent};
 use std::sync::{Arc, OnceLock};
 use strum::{EnumMessage, IntoDiscriminant as _, VariantArray};
 use theme::SystemAppearance;
@@ -11,7 +9,6 @@ use ui::IntoElement;
 use crate::{
     ActionLink, DynamicItem, PROJECT, SettingField, SettingItem, SettingsFieldMetadata,
     SettingsPage, SettingsPageItem, SubPageLink, USER, active_language, all_language_names,
-    pages::render_edit_prediction_setup_page,
 };
 
 const DEFAULT_STRING: String = String::new();
@@ -65,7 +62,6 @@ pub(crate) fn settings_data(cx: &App) -> Vec<SettingsPage> {
         debugger_page(),
         terminal_page(),
         version_control_page(),
-        ai_page(cx),
         network_page(),
         developer_page(cx),
     ]
@@ -2854,7 +2850,7 @@ fn editor_page() -> SettingsPage {
         ]
     }
 
-    fn vim_settings_section() -> [SettingsPageItem; 14] {
+    fn vim_settings_section() -> [SettingsPageItem; 13] {
         [
             SettingsPageItem::SectionHeader("Vim"),
             SettingsPageItem::SettingItem(SettingItem {
@@ -2983,29 +2979,6 @@ fn editor_page() -> SettingsPage {
                             .vim
                             .get_or_insert_default()
                             .use_regex_search = value;
-                    },
-                }),
-                metadata: None,
-                files: USER,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Show Edit Predictions in Normal Mode",
-                description: "Whether edit predictions are shown in normal mode. By default, edit predictions are only shown in insert and replace modes.",
-                field: Box::new(SettingField {
-                    organization_override: None,
-                    json_path: Some("vim.show_edit_predictions_in_normal_mode"),
-                    pick: |settings_content| {
-                        settings_content
-                            .vim
-                            .as_ref()?
-                            .show_edit_predictions_in_normal_mode
-                            .as_ref()
-                    },
-                    write: |settings_content, value, _| {
-                        settings_content
-                            .vim
-                            .get_or_insert_default()
-                            .show_edit_predictions_in_normal_mode = value;
                     },
                 }),
                 metadata: None,
@@ -3449,7 +3422,6 @@ fn languages_and_tools_page(cx: &App) -> SettingsPage {
                         let items: Box<[SettingsPageItem]> = concat_sections!(
                             language_settings_data(),
                             non_editor_language_settings_data(),
-                            edit_prediction_language_settings_section()
                         );
                         this.render_sub_page_items(
                             items.iter().enumerate(),
@@ -8053,13 +8025,6 @@ fn version_control_page() -> SettingsPage {
     }
 }
 
-fn ai_page(_cx: &App) -> SettingsPage {
-    SettingsPage {
-        title: "Edit Predictions",
-        items: concat_sections![edit_prediction_language_settings_section()],
-    }
-}
-
 fn network_page() -> SettingsPage {
     fn network_section() -> [SettingsPageItem; 3] {
         [
@@ -9961,100 +9926,6 @@ fn non_editor_language_settings_data() -> Box<[SettingsPageItem]> {
         debugger_section(),
         prettier_section(),
     )
-}
-
-fn edit_prediction_language_settings_section() -> [SettingsPageItem; 5] {
-    [
-        SettingsPageItem::SectionHeader("Edit Predictions"),
-        SettingsPageItem::SubPageLink(SubPageLink {
-            title: "Configure Providers".into(),
-            r#type: Default::default(),
-            json_path: Some("edit_predictions.providers"),
-            description: Some("Set up different edit prediction providers in complement to Zed's built-in Zeta model.".into()),
-            search_aliases: &[],
-            in_json: false,
-            files: USER,
-            render: render_edit_prediction_setup_page
-        }),
-        SettingsPageItem::SettingItem(SettingItem {
-            title: "Data Collection",
-            description: "Controls whether Zed may collect training data when using Zed's Edit Predictions. Data is only collected for files in projects detected as open source. The default value uses the preference previously set via the status-bar toggle, or false if no preference has been stored.",
-            field: Box::new(SettingField {
-                organization_override: Some(|org_settings| {
-                    const DATA_COLLECTION_DISABLED: EditPredictionDataCollectionChoice = EditPredictionDataCollectionChoice::No;
-
-                    if !org_settings.edit_prediction.is_feedback_enabled {
-                        Some(&DATA_COLLECTION_DISABLED)
-                    } else {
-                        None
-                    }
-                }),
-                json_path: Some("edit_predictions.allow_data_collection"),
-                pick: |settings_content| {
-                    settings_content
-                        .project
-                        .all_languages
-                        .edit_predictions
-                        .as_ref()?
-                        .allow_data_collection
-                        .as_ref()
-                },
-                write: |settings_content, value, _app| {
-                    settings_content
-                        .project
-                        .all_languages
-                        .edit_predictions
-                        .get_or_insert_default()
-                        .allow_data_collection = value;
-                },
-            }),
-            metadata: None,
-            files: USER,
-        }),
-        SettingsPageItem::SettingItem(SettingItem {
-            title: "Show Edit Predictions",
-            description: "Controls whether edit predictions are shown immediately or manually.",
-            field: Box::new(SettingField {
-                organization_override: None,
-                json_path: Some("languages.$(language).show_edit_predictions"),
-                pick: |settings_content| {
-                    language_settings_field(settings_content, |language| {
-                        language.show_edit_predictions.as_ref()
-                    })
-                },
-                write: |settings_content, value, _| {
-                    language_settings_field_mut(settings_content, value, |language, value| {
-                        language.show_edit_predictions = value;
-                    })
-                },
-            }),
-            metadata: None,
-            files: USER | PROJECT,
-        }),
-        SettingsPageItem::SettingItem(SettingItem {
-            title: "Disable in Language Scopes",
-            description: "Controls whether edit predictions are shown in the given language scopes.",
-            field: Box::new(
-                SettingField {
-                    organization_override: None,
-                    json_path: Some("languages.$(language).edit_predictions_disabled_in"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.edit_predictions_disabled_in.as_ref()
-                        })
-                    },
-                    write: |settings_content, value, _| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.edit_predictions_disabled_in = value;
-                        })
-                    },
-                }
-                .unimplemented(),
-            ),
-            metadata: None,
-            files: USER | PROJECT,
-        }),
-    ]
 }
 
 fn show_scrollbar_or_editor(

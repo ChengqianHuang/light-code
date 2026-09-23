@@ -64,8 +64,8 @@ use workspace::{
 };
 use zed::{
     OpenListener, OpenRequest, RawOpenRequest, app_menus, build_window_options,
-    derive_paths_with_position, edit_prediction_registry, handle_cli_connection,
-    handle_keymap_file_changes, initialize_workspace, open_paths_with_positions,
+    derive_paths_with_position, handle_cli_connection, handle_keymap_file_changes,
+    initialize_workspace, open_paths_with_positions,
 };
 
 use crate::zed::{OpenRequestKind, eager_load_active_theme_and_icon_theme};
@@ -577,31 +577,13 @@ fn main() {
         );
         command_palette::init(cx);
         hide_removed_feature_actions(cx);
-        let copilot_chat_configuration = copilot_chat::CopilotChatConfiguration {
-            enterprise_uri: language::language_settings::all_language_settings(None, cx)
-                .edit_predictions
-                .copilot
-                .enterprise_uri
-                .clone(),
-        };
-        let credentials_provider = zed_credentials_provider::global(cx);
-        copilot_chat::init(
-            app_state.client.http_client(),
-            credentials_provider,
-            copilot_chat_configuration,
-            cx,
-        );
-
-        copilot_ui::init(&app_state, cx);
         language_model::init(cx);
         RefreshLlmTokenListener::register(
             app_state.client.clone(),
             app_state.user_store.clone(),
             cx,
         );
-        edit_prediction_ui::init(cx);
         snippet_provider::init(cx);
-        edit_prediction_registry::init(app_state.client.clone(), app_state.user_store.clone(), cx);
         repl::init(app_state.fs.clone(), cx);
         recent_projects::init(cx);
 
@@ -659,7 +641,6 @@ fn main() {
         settings_ui::init(cx);
         keymap_editor::init(cx);
         extensions_ui::init(cx);
-        edit_prediction::init(cx);
         inspector_ui::init(app_state.clone(), cx);
         json_schema_store::init(cx);
         miniprofiler_ui::init(*STARTUP_TIME.get().unwrap(), cx);
@@ -870,6 +851,14 @@ fn hide_removed_feature_actions(cx: &mut App) {
             TypeId::of::<client::SignOut>(),
             TypeId::of::<workspace::FollowNextCollaborator>(),
             TypeId::of::<workspace::Unfollow>(),
+            TypeId::of::<editor::actions::AcceptEditPrediction>(),
+            TypeId::of::<editor::actions::AcceptNextWordEditPrediction>(),
+            TypeId::of::<editor::actions::AcceptNextLineEditPrediction>(),
+            TypeId::of::<editor::actions::NextEditPrediction>(),
+            TypeId::of::<editor::actions::PreviousEditPrediction>(),
+            TypeId::of::<editor::actions::ShowEditPrediction>(),
+            TypeId::of::<editor::actions::ToggleEditPrediction>(),
+            TypeId::of::<zed_actions::OpenZedPredictOnboarding>(),
         ]);
 
         #[cfg(any(debug_assertions, target_os = "windows"))]
